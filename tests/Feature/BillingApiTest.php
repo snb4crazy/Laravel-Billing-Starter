@@ -67,6 +67,31 @@ class BillingApiTest extends TestCase
         $second->assertConflict();
     }
     
-    
+    public function test_webhook_signature_is_verified_and_duplicate_events_are_deduped(): void
+    {
+        config()->set('billing.webhooks.providers.stripe.signing_secret', 'whsec_test_secret');
+        
+        $payload = [
+            'id' => 'evt_test_123',
+            'type' => 'invoice.paid',
+        ];
+        
+        $timestamp = now()->timestamp;
+        $rawPayload = json_encode($payload, JSON_THROW_ON_ERROR);
+        $signature = hash_hmac('sha256', $timestamp.'.'.$rawPayload, 'whsec_test_secret');
+        
+        $headers = [
+            'X-Billing-Timestamp' => (string) $timestamp,
+            'X-Billing-Signature' => $signature,
+        ];
+        
+        $first = $this->postJson('/api/billing/webhooks/stripe', $payload, $headers);
+        $second = $this->postJson('/api/billing/webhooks/stripe', $payload, $headers);
+        
+        $first->assertCreated();
+        $second->assertOk()->assertJson([
+            'message' => 'Duplicate event ignored.',
+        ]);
+    }
 }
 
