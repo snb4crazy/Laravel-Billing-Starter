@@ -50,6 +50,16 @@ class BillingApiTest extends TestCase
             ]);
     }
     
+    public function test_login_fails_with_wrong_password(): void
+    {
+        User::factory()->create(['email' => 'carol@example.com']);
+        
+        $this->postJson('/api/auth/login', [
+            'email' => 'carol@example.com',
+            'password' => 'wrong-password',
+        ])->assertUnauthorized();
+    }
+    
     
 
     public function test_authenticated_user_can_list_active_plans(): void
