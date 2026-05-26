@@ -30,7 +30,26 @@ class BillingApiTest extends TestCase
                 'data' => ['user', 'token', 'token_type'],
             ]);
     }
-
+    
+    public function test_user_can_login_and_receive_bearer_token(): void
+    {
+        User::factory()->create([
+            'email' => 'bob@example.com',
+            'password' => bcrypt('Secret1234!ok'),
+        ]);
+        
+        $response = $this->postJson('/api/auth/login', [
+            'email' => 'bob@example.com',
+            'password' => 'Secret1234!ok',
+        ]);
+        
+        $response
+            ->assertOk()
+            ->assertJsonStructure([
+                'data' => ['user', 'token', 'token_type'],
+            ]);
+    }
+    
     
 
     public function test_authenticated_user_can_list_active_plans(): void
