@@ -60,6 +60,11 @@ class BillingApiTest extends TestCase
         ])->assertUnauthorized();
     }
     
+    public function test_me_requires_bearer_token(): void
+    {
+        $this->getJson('/api/auth/me')->assertUnauthorized();
+    }
+    
     
 
     public function test_authenticated_user_can_list_active_plans(): void
