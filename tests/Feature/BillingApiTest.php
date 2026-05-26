@@ -39,7 +39,34 @@ class BillingApiTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'data');
     }
-
+    
+    public function test_subscription_create_requires_unique_idempotency_key_per_payload(): void
+    {
+        $user = User::factory()->create();
+        
+        $plan = Plan::query()->create([
+            'name' => 'Growth',
+            'slug' => 'growth',
+            'monthly_price' => 2000,
+            'currency' => 'USD',
+            'provider' => 'stripe',
+            'is_active' => true,
+        ]);
+        
+        $payload = [
+            'plan_id' => $plan->id,
+            'interval' => 'monthly',
+        ];
+        
+        $headers = ['Idempotency-Key' => 'idem-key-123'];
+        
+        $first = $this->actingAs($user)->postJson('/api/billing/subscriptions', $payload, $headers);
+        $second = $this->actingAs($user)->postJson('/api/billing/subscriptions', $payload, $headers);
+        
+        $first->assertCreated();
+        $second->assertConflict();
+    }
+    
     
 }
 
