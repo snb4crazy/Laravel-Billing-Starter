@@ -65,6 +65,17 @@ class BillingApiTest extends TestCase
         $this->getJson('/api/auth/me')->assertUnauthorized();
     }
     
+    public function test_me_returns_authenticated_user(): void
+    {
+        $user = User::factory()->create();
+        $token = $user->createToken('api')->plainTextToken;
+        
+        $this->withToken($token)
+            ->getJson('/api/auth/me')
+            ->assertOk()
+            ->assertJsonPath('data.email', $user->email);
+    }
+    
     
 
     public function test_authenticated_user_can_list_active_plans(): void
