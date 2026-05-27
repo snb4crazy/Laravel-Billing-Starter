@@ -25,6 +25,13 @@ class VerifyWebhookSignature
     public function handle(Request $request, Closure $next): Response
     {
         $provider = (string) $request->route('provider');
+
+        if ($provider === 'paypal' && ! $this->isPayPalConfigured()) {
+            return new JsonResponse([
+                'message' => 'PayPal webhook verification is unavailable until API credentials are configured.',
+            ], Response::HTTP_SERVICE_UNAVAILABLE);
+        }
+
         $secret = (string) config("billing.webhooks.providers.{$provider}.signing_secret");
 
         if ($secret === '') {
@@ -36,6 +43,14 @@ class VerifyWebhookSignature
         $this->registry->for($provider)->verify($request, $secret);
 
         return $next($request);
+    }
+
+    private function isPayPalConfigured(): bool
+    {
+        $clientId = (string) config('billing.providers.paypal.client_id', '');
+        $clientSecret = (string) config('billing.providers.paypal.secret', '');
+
+        return $clientId !== '' && $clientSecret !== '';
     }
 }
 

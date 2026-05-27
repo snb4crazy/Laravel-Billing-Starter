@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Billing\Contracts\PayPalClientInterface;
 use App\Models\Plan;
+use App\Models\Payment;
 use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -228,6 +230,49 @@ class BillingApiTest extends TestCase
         );
     }
 
+    private function fakePayPalWebhookVerification(): void
+    {
+        $this->app->bind(PayPalClientInterface::class, function (): PayPalClientInterface {
+            return new class implements PayPalClientInterface
+            {
+                public function createCheckoutOrder(array $params): array
+                {
+                    return ['id' => 'ORDER-FAKE', 'status' => 'CREATED', 'approve_url' => 'https://example.test'];
+                }
+
+                public function createSubscription(array $params): array
+                {
+                    return ['id' => 'SUB-FAKE', 'status' => 'APPROVAL_PENDING', 'approve_url' => 'https://example.test'];
+                }
+
+                public function verifyWebhookSignature(array $params): bool
+                {
+                    return true;
+                }
+            };
+        });
+    }
+
+    private function sendPayPalWebhook(array $payload): \Illuminate\Testing\TestResponse
+    {
+        config()->set('billing.providers.paypal.client_id', 'paypal-client-id-test');
+        config()->set('billing.providers.paypal.secret', 'paypal-client-secret-test');
+        config()->set('billing.webhooks.providers.paypal.signing_secret', 'WH-TEST-ID');
+        $this->fakePayPalWebhookVerification();
+
+        return $this->postJson(
+            '/api/billing/webhooks/paypal',
+            $payload,
+            [
+                'Paypal-Transmission-Id' => 'tx-001',
+                'Paypal-Transmission-Time' => now()->toIso8601String(),
+                'Paypal-Cert-Url' => 'https://api-m.sandbox.paypal.com/certs/cert.pem',
+                'Paypal-Auth-Algo' => 'SHA256withRSA',
+                'Paypal-Transmission-Sig' => 'stub-signature',
+            ],
+        );
+    }
+
     public function test_webhook_signature_is_verified_and_duplicate_events_are_deduped(): void
     {
         $payload = ['id' => 'evt_dedup_001', 'type' => 'invoice.paid'];
@@ -245,6 +290,155 @@ class BillingApiTest extends TestCase
             ['id' => 'evt_bad_sig', 'type' => 'invoice.paid'],
             ['Stripe-Signature' => 't='.now()->timestamp.',v1=invalidsignature'],
         )->assertUnauthorized();
+    }
+
+    public function test_stripe_charge_succeeded_webhook_creates_payment(): void
+    {
+        $user = User::factory()->create();
+        
+        $payload = [
+            'id' => 'evt_charge_succeeded_001',
+            'type' => 'charge.succeeded',
+            'data' => [
+                'object' => [
+                    'id' => 'ch_001',
+                    'amount' => 2500,
+                    'currency' => 'usd',
+                    'metadata' => ['user_id' => (string) $user->id],
+                ],
+            ],
+        ];
+        
+        $this->sendStripeWebhook($payload)->assertCreated();
+        
+        $this->assertDatabaseHas('payments', [
+            'provider' => 'stripe',
+            'provider_payment_id' => 'ch_001',
+            'user_id' => $user->id,
+            'status' => 'succeeded',
+            'amount' => 2500,
+            'currency' => 'USD',
+        ]);
+    }
+
+    public function test_stripe_charge_failed_webhook_creates_failed_payment(): void
+    {
+        $user = User::factory()->create();
+        
+        $payload = [
+            'id' => 'evt_charge_failed_001',
+            'type' => 'charge.failed',
+            'data' => [
+                'object' => [
+                    'id' => 'ch_002',
+                    'amount' => 2500,
+                    'currency' => 'usd',
+                    'metadata' => ['user_id' => (string) $user->id],
+                    'failure_code' => 'card_declined',
+                ],
+            ],
+        ];
+        
+        $this->sendStripeWebhook($payload)->assertCreated();
+        
+        $this->assertDatabaseHas('payments', [
+            'provider' => 'stripe',
+            'provider_payment_id' => 'ch_002',
+            'user_id' => $user->id,
+            'status' => 'failed',
+            'amount' => 2500,
+            'currency' => 'USD',
+        ]);
+        
+        $payment = Payment::query()->where('provider_payment_id', 'ch_002')->first();
+        $this->assertSame('card_declined', $payment?->metadata['failure_reason']);
+    }
+
+    public function test_paypal_subscription_cancelled_webhook_cancels_subscription(): void
+    {
+        $user = User::factory()->create();
+        
+        Subscription::query()->create([
+            'user_id' => $user->id,
+            'provider' => 'paypal',
+            'provider_subscription_id' => 'I-SUB-CANCEL-001',
+            'status' => 'active',
+        ]);
+        
+        $payload = [
+            'id' => 'WH-SUB-CANCEL-001',
+            'event_type' => 'BILLING.SUBSCRIPTION.CANCELLED',
+            'resource' => [
+                'id' => 'I-SUB-CANCEL-001',
+            ],
+        ];
+        
+        $this->sendPayPalWebhook($payload)->assertCreated();
+        
+        $this->assertDatabaseHas('subscriptions', [
+            'provider' => 'paypal',
+            'provider_subscription_id' => 'I-SUB-CANCEL-001',
+            'status' => 'canceled',
+        ]);
+    }
+
+    public function test_paypal_webhook_accepts_event_type_field(): void
+    {
+        $user = User::factory()->create();
+
+        Subscription::query()->create([
+            'user_id' => $user->id,
+            'provider' => 'paypal',
+            'provider_subscription_id' => 'I-SUB-CANCEL-002',
+            'status' => 'active',
+        ]);
+
+        $payload = [
+            'id' => 'WH-SUB-CANCEL-002',
+            'event_type' => 'BILLING.SUBSCRIPTION.CANCELLED',
+            'resource' => [
+                'id' => 'I-SUB-CANCEL-002',
+            ],
+        ];
+
+        $this->sendPayPalWebhook($payload)->assertCreated();
+
+        $this->assertDatabaseHas('webhook_events', [
+            'provider' => 'paypal',
+            'external_event_id' => 'WH-SUB-CANCEL-002',
+            'event_type_raw' => 'BILLING.SUBSCRIPTION.CANCELLED',
+            'event_type_canonical' => 'subscription.canceled',
+            'processing_status' => 'processed',
+        ]);
+
+        $this->assertDatabaseHas('subscriptions', [
+            'provider' => 'paypal',
+            'provider_subscription_id' => 'I-SUB-CANCEL-002',
+            'status' => 'canceled',
+        ]);
+    }
+
+    public function test_paypal_webhook_is_rejected_when_paypal_credentials_are_missing(): void
+    {
+        config()->set('billing.providers.paypal.client_id', '');
+        config()->set('billing.providers.paypal.secret', '');
+        config()->set('billing.webhooks.providers.paypal.signing_secret', 'WH-TEST-ID');
+
+        $this->postJson(
+            '/api/billing/webhooks/paypal',
+            ['id' => 'WH-EVT-001', 'type' => 'PAYMENT.CAPTURE.COMPLETED'],
+            [
+                'Paypal-Transmission-Id' => 'tx-001',
+                'Paypal-Transmission-Time' => now()->toIso8601String(),
+                'Paypal-Cert-Url' => 'https://api-m.sandbox.paypal.com/certs/cert.pem',
+                'Paypal-Auth-Algo' => 'SHA256withRSA',
+                'Paypal-Transmission-Sig' => 'stub-signature',
+            ],
+        )
+            ->assertServiceUnavailable()
+            ->assertJson([
+                'message' => 'PayPal webhook verification is unavailable until API credentials are configured.',
+            ]);
     }
 
 

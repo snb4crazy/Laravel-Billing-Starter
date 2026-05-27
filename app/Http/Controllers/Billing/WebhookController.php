@@ -14,6 +14,7 @@ use Symfony\Component\HttpFoundation\Response;
 class WebhookController extends Controller
 {
     private const EVENT_MAP = [
+        // Stripe events
         'checkout.session.completed' => 'checkout.completed',
         'invoice.paid' => 'invoice.paid',
         'invoice.payment_failed' => 'invoice.payment_failed',
@@ -22,22 +23,30 @@ class WebhookController extends Controller
         'customer.subscription.deleted' => 'subscription.canceled',
         'charge.succeeded' => 'payment.succeeded',
         'charge.failed' => 'payment.failed',
+        // PayPal events
+        'PAYMENT.CAPTURE.COMPLETED' => 'payment.succeeded',
+        'PAYMENT.CAPTURE.DENIED' => 'payment.failed',
+        'BILLING.SUBSCRIPTION.ACTIVATED' => 'subscription.activated',
+        'BILLING.SUBSCRIPTION.CANCELLED' => 'subscription.canceled',
     ];
 
     public function handle(Request $request, string $provider, WebhookEventProcessor $processor): JsonResponse
     {
         $payload = $request->validate([
             'id' => ['required', 'string', 'max:255'],
-            'type' => ['required', 'string', 'max:255'],
+            'type' => ['nullable', 'string', 'max:255', 'required_without:event_type'],
+            'event_type' => ['nullable', 'string', 'max:255', 'required_without:type'],
         ]);
 
-        $canonicalType = self::EVENT_MAP[$payload['type']] ?? null;
+        $eventTypeRaw = (string) ($payload['type'] ?? $payload['event_type']);
+
+        $canonicalType = self::EVENT_MAP[$eventTypeRaw] ?? null;
 
         try {
             $event = WebhookEvent::query()->create([
                 'provider' => $provider,
                 'external_event_id' => $payload['id'],
-                'event_type_raw' => $payload['type'],
+                'event_type_raw' => $eventTypeRaw,
                 'event_type_canonical' => $canonicalType,
                 'payload_json' => $request->json()->all(),
                 'headers_json' => [

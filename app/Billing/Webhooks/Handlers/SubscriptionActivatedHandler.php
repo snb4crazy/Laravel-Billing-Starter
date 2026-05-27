@@ -5,14 +5,15 @@ namespace App\Billing\Webhooks\Handlers;
 use App\Models\Subscription;
 use App\Models\WebhookEvent;
 
-class SubscriptionCanceledHandler
+class SubscriptionActivatedHandler
 {
     public function handle(WebhookEvent $event): void
     {
         $payload = $event->payload_json;
-        $object = (array) (data_get($payload, 'data.object') ?? data_get($payload, 'resource', []));
-
-        $providerSubscriptionId = (string) data_get($object, 'id', data_get($object, 'subscription', ''));
+        
+        // PayPal event structure: resource.id contains the subscription ID
+        $resource = (array) data_get($payload, 'resource', []);
+        $providerSubscriptionId = (string) data_get($resource, 'id', '');
 
         if ($providerSubscriptionId === '') {
             return;
@@ -28,9 +29,9 @@ class SubscriptionCanceledHandler
         }
 
         $subscription->forceFill([
-            'status' => 'canceled',
-            'canceled_at' => now(),
+            'status' => 'active',
         ])->save();
     }
 }
+
 
