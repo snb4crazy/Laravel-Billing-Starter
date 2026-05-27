@@ -43,6 +43,7 @@ class StripeProviderTest extends TestCase
                 && $params['success_url'] === 'https://example.com/success'
                 && $params['cancel_url'] === 'https://example.com/cancel'
                 && $params['metadata']['user_id'] === '1'
+                && $params['subscription_data']['metadata']['user_id'] === '1'
             )))
             ->andReturn(['id' => 'cs_test_001', 'url' => 'https://checkout.stripe.com/cs_test_001']);
 
