@@ -14,6 +14,7 @@ use Symfony\Component\HttpFoundation\Response;
 class WebhookController extends Controller
 {
     private const EVENT_MAP = [
+        // Stripe events
         'checkout.session.completed' => 'checkout.completed',
         'invoice.paid' => 'invoice.paid',
         'invoice.payment_failed' => 'invoice.payment_failed',
@@ -22,6 +23,11 @@ class WebhookController extends Controller
         'customer.subscription.deleted' => 'subscription.canceled',
         'charge.succeeded' => 'payment.succeeded',
         'charge.failed' => 'payment.failed',
+        // PayPal events
+        'PAYMENT.CAPTURE.COMPLETED' => 'payment.succeeded',
+        'PAYMENT.CAPTURE.DENIED' => 'payment.failed',
+        'BILLING.SUBSCRIPTION.ACTIVATED' => 'subscription.activated',
+        'BILLING.SUBSCRIPTION.CANCELLED' => 'subscription.canceled',
     ];
 
     public function handle(Request $request, string $provider, WebhookEventProcessor $processor): JsonResponse
