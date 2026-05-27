@@ -87,7 +87,14 @@ class BillingApiTest extends TestCase
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
     
+    // -----------------------------------------------------------------------
+    // Billing
+    // -----------------------------------------------------------------------
     
+    public function test_unauthenticated_request_to_billing_plans_is_rejected(): void
+    {
+        $this->getJson('/api/billing/plans')->assertUnauthorized();
+    }
 
     public function test_authenticated_user_can_list_active_plans(): void
     {
