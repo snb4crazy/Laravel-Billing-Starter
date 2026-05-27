@@ -19,6 +19,11 @@ return [
             'return_url' => env('PAYPAL_RETURN_URL', env('APP_URL').'/billing/paypal/return'),
             'cancel_url' => env('PAYPAL_CANCEL_URL', env('APP_URL').'/billing/paypal/cancel'),
         ],
+        'paddle' => [
+            'vendor_id' => env('PADDLE_VENDOR_ID'),
+            'api_key' => env('PADDLE_API_KEY'),
+            'base_url' => env('PADDLE_API_BASE_URL', 'https://api.sandbox.paddle.com'),
+        ],
     ],
 
     'webhooks' => [
