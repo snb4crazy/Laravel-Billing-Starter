@@ -88,14 +88,25 @@ Replace ad-hoc ownership checks in controllers with proper Laravel Policy classe
 
 Replace `NullBillingProvider` with a working Stripe implementation.
 
-- [ ] `composer require stripe/stripe-php`
-- [ ] `app/Billing/Providers/StripeProvider.php` — implements `BillingProvider`
-  - [ ] `createCheckoutSession()` → Stripe Checkout Session API
-  - [ ] `createSubscription()` → Stripe Subscription API
-- [ ] Add `STRIPE_SECRET_KEY` to `.env.example` and `config/billing.php`
-- [ ] Switch `ProviderManager` to resolve Stripe when provider is `stripe`
-- [ ] Contract tests against Stripe test mode
-- [ ] Update `docs/scaffold.md`
+- [x] `composer require stripe/stripe-php`
+- [x] `app/Billing/Contracts/StripeClientInterface.php` — injectable, mockable SDK wrapper
+- [x] `app/Billing/Stripe/StripeHttpClient.php` — real Stripe SDK calls
+- [x] `app/Billing/Stripe/NullStripeClient.php` — stub when key is absent (test/local)
+- [x] `app/Billing/Providers/StripeProvider.php` — implements `BillingProvider`
+  - [x] `createCheckoutSession()` → Stripe Checkout Session API (subscription + one-time)
+  - [x] `createSubscription()` → Stripe Subscription API
+- [x] Webhook verification refactored to provider strategy pattern
+  - [x] `WebhookVerifier` interface
+  - [x] `StripeWebhookVerifier` (Stripe-Signature header, Stripe SDK)
+  - [x] `HmacWebhookVerifier` (X-Billing-Timestamp / X-Billing-Signature for other providers)
+  - [x] `WebhookVerifierRegistry` — maps provider → verifier
+  - [x] `VerifyWebhookSignature` middleware updated to use registry
+- [x] `STRIPE_SECRET_KEY` added to `config/billing.php` and `.env.example`
+- [x] `ProviderManager` resolves `StripeProvider` for `stripe` provider
+- [x] `AppServiceProvider` binds `StripeClientInterface` (real or null based on key)
+- [x] `tests/Unit/StripeProviderTest.php` — 4 unit tests, Mockery mocked SDK
+- [x] Webhook tests updated to use Stripe-native `Stripe-Signature` format
+- [x] `docs/stripe-integration-guide.md` — full guide for real accounts + extraction into other apps
 
 ### 🔜 Next: Webhook Domain Handlers (completes Phase 1 acceptance criteria)
 
