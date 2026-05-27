@@ -7,11 +7,14 @@ use App\Billing\Providers\PayPalProvider;
 use App\Models\Plan;
 use App\Models\User;
 use Mockery;
+use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use Mockery\MockInterface;
 use Tests\TestCase;
 
 class PayPalProviderTest extends TestCase
 {
+    use MockeryPHPUnitIntegration;
+
     public function test_create_checkout_session_uses_order_api_and_returns_approval_url(): void
     {
         $user = new User();
