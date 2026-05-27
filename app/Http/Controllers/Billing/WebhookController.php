@@ -48,7 +48,9 @@ class WebhookController extends Controller
                 'processed_at' => now(),
             ]);
         } catch (QueryException $exception) {
-            if ((string) $exception->getCode() === '23000') {
+            $sqlState = (string) $exception->getCode();
+
+            if (in_array($sqlState, ['23000', '23505'], true)) {
                 return response()->json([
                     'message' => 'Duplicate event ignored.',
                 ]);
