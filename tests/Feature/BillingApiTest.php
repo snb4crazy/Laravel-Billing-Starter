@@ -247,6 +247,29 @@ class BillingApiTest extends TestCase
         )->assertUnauthorized();
     }
 
+    public function test_paypal_webhook_is_rejected_when_paypal_credentials_are_missing(): void
+    {
+        config()->set('billing.providers.paypal.client_id', '');
+        config()->set('billing.providers.paypal.secret', '');
+        config()->set('billing.webhooks.providers.paypal.signing_secret', 'WH-TEST-ID');
+
+        $this->postJson(
+            '/api/billing/webhooks/paypal',
+            ['id' => 'WH-EVT-001', 'type' => 'PAYMENT.CAPTURE.COMPLETED'],
+            [
+                'Paypal-Transmission-Id' => 'tx-001',
+                'Paypal-Transmission-Time' => now()->toIso8601String(),
+                'Paypal-Cert-Url' => 'https://api-m.sandbox.paypal.com/certs/cert.pem',
+                'Paypal-Auth-Algo' => 'SHA256withRSA',
+                'Paypal-Transmission-Sig' => 'stub-signature',
+            ],
+        )
+            ->assertServiceUnavailable()
+            ->assertJson([
+                'message' => 'PayPal webhook verification is unavailable until API credentials are configured.',
+            ]);
+    }
+
 
     public function test_unhandled_canonical_webhook_event_is_marked_ignored(): void
     {
