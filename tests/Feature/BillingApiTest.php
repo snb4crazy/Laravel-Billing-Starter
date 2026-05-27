@@ -153,6 +153,31 @@ class BillingApiTest extends TestCase
         $first->assertCreated();
         $second->assertConflict();
     }
+    
+    public function test_idempotency_key_is_not_consumed_when_mutation_returns_4xx(): void
+    {
+        $owner = User::factory()->create();
+        $otherUser = User::factory()->create();
+        
+        $subscription = Subscription::query()->create([
+            'user_id' => $owner->id,
+            'provider' => 'stripe',
+            'provider_subscription_id' => 'sub_owner_002',
+            'status' => 'active',
+        ]);
+        
+        $token = $otherUser->createToken('api')->plainTextToken;
+        $headers = ['Idempotency-Key' => 'idem-cancel-foreign-002'];
+        
+        $first = $this->withToken($token)
+            ->postJson('/api/billing/subscriptions/'.$subscription->id.'/cancel', [], $headers);
+        
+        $second = $this->withToken($token)
+            ->postJson('/api/billing/subscriptions/'.$subscription->id.'/cancel', [], $headers);
+        
+        $first->assertForbidden();
+        $second->assertForbidden();
+    }
 
     public function test_user_cannot_cancel_another_users_subscription(): void
     {

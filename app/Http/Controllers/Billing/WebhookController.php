@@ -49,7 +49,9 @@ class WebhookController extends Controller
                 'attempt_count' => 1,
             ]);
         } catch (QueryException $exception) {
-            if ((string) $exception->getCode() === '23000') {
+            $sqlState = (string) $exception->getCode();
+
+            if (in_array($sqlState, ['23000', '23505'], true)) {
                 return response()->json([
                     'message' => 'Duplicate event ignored.',
                 ]);
