@@ -353,8 +353,34 @@ class BillingApiTest extends TestCase
         $payment = Payment::query()->where('provider_payment_id', 'ch_002')->first();
         $this->assertSame('card_declined', $payment?->metadata['failure_reason']);
     }
-    
-    
+
+    public function test_paypal_subscription_cancelled_webhook_cancels_subscription(): void
+    {
+        $user = User::factory()->create();
+        
+        Subscription::query()->create([
+            'user_id' => $user->id,
+            'provider' => 'paypal',
+            'provider_subscription_id' => 'I-SUB-CANCEL-001',
+            'status' => 'active',
+        ]);
+        
+        $payload = [
+            'id' => 'WH-SUB-CANCEL-001',
+            'type' => 'BILLING.SUBSCRIPTION.CANCELLED',
+            'resource' => [
+                'id' => 'I-SUB-CANCEL-001',
+            ],
+        ];
+        
+        $this->sendPayPalWebhook($payload)->assertCreated();
+        
+        $this->assertDatabaseHas('subscriptions', [
+            'provider' => 'paypal',
+            'provider_subscription_id' => 'I-SUB-CANCEL-001',
+            'status' => 'canceled',
+        ]);
+    }
 
     public function test_paypal_webhook_is_rejected_when_paypal_credentials_are_missing(): void
     {
