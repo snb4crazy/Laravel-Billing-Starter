@@ -57,7 +57,40 @@ class StripeProviderTest extends TestCase
         $this->assertEquals('cs_test_001', $result['session_id']);
         $this->assertEquals('https://checkout.stripe.com/cs_test_001', $result['checkout_url']);
     }
-
+    
+    // -----------------------------------------------------------------------
+    // createCheckoutSession — yearly interval uses yearly price ID
+    // -----------------------------------------------------------------------
+    
+    public function test_create_checkout_session_uses_yearly_price_id(): void
+    {
+        $user = new User();
+        $user->id = 2;
+        $user->email = 'bob@example.com';
+        
+        $plan = new Plan();
+        $plan->provider_plan_monthly_id = 'price_monthly_002';
+        $plan->provider_plan_yearly_id = 'price_yearly_002';
+        
+        /** @var MockInterface&StripeClientInterface $client */
+        $client = Mockery::mock(StripeClientInterface::class);
+        
+        $client->shouldReceive('findOrCreateCustomer')->andReturn(['id' => 'cus_test_002']);
+        
+        $client->shouldReceive('createCheckoutSession')
+            ->once()
+            ->with(Mockery::on(fn (array $params): bool => (
+                $params['line_items'][0]['price'] === 'price_yearly_002'
+            )))
+            ->andReturn(['id' => 'cs_test_002', 'url' => 'https://checkout.stripe.com/cs_test_002']);
+        
+        (new StripeProvider($client))->createCheckoutSession($user, $plan, [
+            'interval' => 'yearly',
+            'success_url' => 'https://example.com/success',
+            'cancel_url' => 'https://example.com/cancel',
+        ]);
+    }
+    
     
 }
 
