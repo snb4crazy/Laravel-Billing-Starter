@@ -69,6 +69,13 @@ class StripeProvider implements BillingProvider
                 'price' => $priceId,
                 'quantity' => 1,
             ]];
+            // Session-level metadata is not copied to Stripe Subscription/Invoice.
+            // Put user_id into subscription_data metadata for downstream invoice.* handlers.
+            $params['subscription_data'] = [
+                'metadata' => [
+                    'user_id' => (string) $user->id,
+                ],
+            ];
         } else {
             $params['mode'] = 'payment';
             $params['line_items'] = [[
