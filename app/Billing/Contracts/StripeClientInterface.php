@@ -13,7 +13,7 @@ namespace App\Billing\Contracts;
 interface StripeClientInterface
 {
     /**
-     * @param  array<string, mixed>  $params
+     * @param  array<string, mixed>  $metadata
      * @return array<string, mixed>  Serialised Stripe\Customer object fields
      */
     public function findOrCreateCustomer(string $email, array $metadata = []): array;
