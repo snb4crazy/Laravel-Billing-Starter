@@ -250,8 +250,6 @@ class BillingApiTest extends TestCase
 
     public function test_unhandled_canonical_webhook_event_is_marked_ignored(): void
     {
-        config()->set('billing.webhooks.providers.stripe.signing_secret', 'whsec_test_secret');
-
         $payload = [
             'id' => 'evt_unhandled_001',
             'type' => 'customer.subscription.updated',
@@ -262,14 +260,7 @@ class BillingApiTest extends TestCase
             ],
         ];
 
-        $timestamp = now()->timestamp;
-        $rawPayload = json_encode($payload, JSON_THROW_ON_ERROR);
-        $signature = hash_hmac('sha256', $timestamp.'.'.$rawPayload, 'whsec_test_secret');
-
-        $this->postJson('/api/billing/webhooks/stripe', $payload, [
-            'X-Billing-Timestamp' => (string) $timestamp,
-            'X-Billing-Signature' => $signature,
-        ])->assertCreated();
+        $this->sendStripeWebhook($payload)->assertCreated();
 
         $this->assertDatabaseHas('webhook_events', [
             'provider' => 'stripe',
