@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Billing\Contracts\StripeClientInterface;
+use App\Billing\Webhooks\WebhookVerifierRegistry;
 use App\Billing\Stripe\NullStripeClient;
 use App\Billing\Stripe\StripeHttpClient;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -24,6 +25,12 @@ class AppServiceProvider extends ServiceProvider
             }
 
             return new StripeHttpClient($apiKey);
+        });
+
+        $this->app->singleton(WebhookVerifierRegistry::class, function (): WebhookVerifierRegistry {
+            $toleranceSeconds = max((int) config('billing.webhooks.tolerance_seconds', 300), 60);
+
+            return new WebhookVerifierRegistry($toleranceSeconds);
         });
     }
 
