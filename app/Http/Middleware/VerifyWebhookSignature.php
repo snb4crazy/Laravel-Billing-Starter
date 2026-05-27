@@ -33,7 +33,6 @@ class VerifyWebhookSignature
             ], Response::HTTP_SERVICE_UNAVAILABLE);
         }
 
-        $toleranceSeconds = max((int) config('billing.webhooks.tolerance_seconds', 300), 60);
         $this->registry->for($provider)->verify($request, $secret);
 
         return $next($request);
