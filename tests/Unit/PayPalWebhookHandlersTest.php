@@ -258,6 +258,31 @@ class PayPalWebhookHandlersTest extends TestCase
         $this->assertSame('active', $subscription->status);
     }
     
+    public function test_subscription_activated_handler_skips_without_subscription_id(): void
+    {
+        $event = WebhookEvent::create([
+            'provider' => 'paypal',
+            'external_event_id' => 'WH-SUB-ACTIVATED',
+            'event_type_raw' => 'BILLING.SUBSCRIPTION.ACTIVATED',
+            'event_type_canonical' => 'subscription.activated',
+            'payload_json' => [
+                'resource' => [
+                    'id' => '',
+                    'status' => 'ACTIVE',
+                ],
+            ],
+            'headers_json' => [],
+            'signature_verified_at' => now(),
+            'processing_status' => 'pending',
+        ]);
+        
+        $handler = new SubscriptionActivatedHandler();
+        $handler->handle($event);
+        
+        // Should not throw any errors, just skip silently
+        $this->assertTrue(true);
+    }
+    
     
 }
 
