@@ -320,6 +320,39 @@ class BillingApiTest extends TestCase
             'currency' => 'USD',
         ]);
     }
+
+    public function test_stripe_charge_failed_webhook_creates_failed_payment(): void
+    {
+        $user = User::factory()->create();
+        
+        $payload = [
+            'id' => 'evt_charge_failed_001',
+            'type' => 'charge.failed',
+            'data' => [
+                'object' => [
+                    'id' => 'ch_002',
+                    'amount' => 2500,
+                    'currency' => 'usd',
+                    'metadata' => ['user_id' => (string) $user->id],
+                    'failure_code' => 'card_declined',
+                ],
+            ],
+        ];
+        
+        $this->sendStripeWebhook($payload)->assertCreated();
+        
+        $this->assertDatabaseHas('payments', [
+            'provider' => 'stripe',
+            'provider_payment_id' => 'ch_002',
+            'user_id' => $user->id,
+            'status' => 'failed',
+            'amount' => 2500,
+            'currency' => 'USD',
+        ]);
+        
+        $payment = Payment::query()->where('provider_payment_id', 'ch_002')->first();
+        $this->assertSame('card_declined', $payment?->metadata['failure_reason']);
+    }
     
     
 
