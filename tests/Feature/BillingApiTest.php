@@ -382,6 +382,42 @@ class BillingApiTest extends TestCase
         ]);
     }
 
+    public function test_paypal_webhook_accepts_event_type_field(): void
+    {
+        $user = User::factory()->create();
+
+        Subscription::query()->create([
+            'user_id' => $user->id,
+            'provider' => 'paypal',
+            'provider_subscription_id' => 'I-SUB-CANCEL-002',
+            'status' => 'active',
+        ]);
+
+        $payload = [
+            'id' => 'WH-SUB-CANCEL-002',
+            'event_type' => 'BILLING.SUBSCRIPTION.CANCELLED',
+            'resource' => [
+                'id' => 'I-SUB-CANCEL-002',
+            ],
+        ];
+
+        $this->sendPayPalWebhook($payload)->assertCreated();
+
+        $this->assertDatabaseHas('webhook_events', [
+            'provider' => 'paypal',
+            'external_event_id' => 'WH-SUB-CANCEL-002',
+            'event_type_raw' => 'BILLING.SUBSCRIPTION.CANCELLED',
+            'event_type_canonical' => 'subscription.canceled',
+            'processing_status' => 'processed',
+        ]);
+
+        $this->assertDatabaseHas('subscriptions', [
+            'provider' => 'paypal',
+            'provider_subscription_id' => 'I-SUB-CANCEL-002',
+            'status' => 'canceled',
+        ]);
+    }
+
     public function test_paypal_webhook_is_rejected_when_paypal_credentials_are_missing(): void
     {
         config()->set('billing.providers.paypal.client_id', '');
