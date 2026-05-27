@@ -31,7 +31,7 @@ class NullPayPalClient implements PayPalClientInterface
 
     public function verifyWebhookSignature(array $params): bool
     {
-        return true;
+        return false;
     }
 }
 
