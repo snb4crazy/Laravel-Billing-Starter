@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
+use Throwable;
 use Symfony\Component\HttpFoundation\Response;
 
 class RequireIdempotencyKey
@@ -42,7 +43,20 @@ class RequireIdempotencyKey
             ], Response::HTTP_CONFLICT);
         }
 
-        return $next($request);
+        try {
+            $response = $next($request);
+        } catch (Throwable $exception) {
+            // Validation and domain exceptions should not permanently consume the key.
+            Cache::forget($cacheKey);
+
+            throw $exception;
+        }
+
+        if ($response->getStatusCode() >= 400) {
+            Cache::forget($cacheKey);
+        }
+
+        return $response;
     }
 }
 
