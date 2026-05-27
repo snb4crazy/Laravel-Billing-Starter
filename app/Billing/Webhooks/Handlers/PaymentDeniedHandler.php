@@ -11,7 +11,7 @@ class PaymentDeniedHandler
     public function handle(WebhookEvent $event): void
     {
         $payload = $event->payload_json;
-        $details = $this->extractPaymentDetails($payload);
+        $details = (array) (data_get($payload, 'resource') ?? data_get($payload, 'data.object', []));
 
         $providerPaymentId = (string) data_get($details, 'id', '');
 
@@ -54,13 +54,16 @@ class PaymentDeniedHandler
         return (array) (data_get($payload, 'resource') ?? data_get($payload, 'data.object', []));
     }
 
-    private function resolveUser(array $details): ?User
+    private function resolveUser(array $resource): ?User
     {
         $candidates = [
-            data_get($details, 'metadata.user_id'),
-            data_get($details, 'user_id'),
-            data_get($details, 'custom_id'),
-            data_get($details, 'supplementary_data.related_ids.order_id'),
+            // Stripe-style payloads (charge.*)
+            data_get($resource, 'metadata.user_id'),
+            data_get($resource, 'user_id'),
+
+            // PayPal-style payloads (PAYMENT.CAPTURE.*)
+            data_get($resource, 'custom_id'),
+            data_get($resource, 'supplementary_data.related_ids.order_id'),
         ];
 
         foreach ($candidates as $userId) {
