@@ -54,6 +54,38 @@ class PayPalProviderTest extends TestCase
         $this->assertSame('https://paypal.test/approve/ORDER-123', $result['checkout_url']);
     }
 
-    
+    public function test_create_subscription_uses_interval_specific_paypal_plan_id(): void
+    {
+        $user = new User();
+        $user->id = 11;
+        $user->name = 'Bob Doe';
+        $user->email = 'bob@example.com';
+        
+        $plan = new Plan();
+        $plan->provider_plan_monthly_id = 'P-MONTHLY-001';
+        $plan->provider_plan_yearly_id = 'P-YEARLY-001';
+        
+        /** @var MockInterface&PayPalClientInterface $client */
+        $client = Mockery::mock(PayPalClientInterface::class);
+        
+        $client->shouldReceive('createSubscription')
+            ->once()
+            ->with(Mockery::on(fn (array $params): bool => (
+                $params['plan_id'] === 'P-YEARLY-001'
+                && $params['custom_id'] === '11'
+                && $params['subscriber']['email_address'] === 'bob@example.com'
+            )))
+            ->andReturn([
+                'id' => 'I-SUB-001',
+                'status' => 'APPROVAL_PENDING',
+                'approve_url' => 'https://paypal.test/approve/I-SUB-001',
+            ]);
+        
+        $provider = new PayPalProvider($client);
+        $result = $provider->createSubscription($user, $plan, 'yearly');
+        
+        $this->assertSame('I-SUB-001', $result['provider_subscription_id']);
+        $this->assertSame('approval_pending', $result['status']);
+    }
 }
 
