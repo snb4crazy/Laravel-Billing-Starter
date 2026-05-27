@@ -151,6 +151,46 @@ class PayPalWebhookHandlersTest extends TestCase
         $this->assertDatabaseCount('payments', 0);
     }
     
+    public function test_payment_denied_handler_creates_failed_payment(): void
+    {
+        $user = User::factory()->create();
+        
+        $event = WebhookEvent::create([
+            'provider' => 'paypal',
+            'external_event_id' => 'WH-CAPTURE-DENIED',
+            'event_type_raw' => 'PAYMENT.CAPTURE.DENIED',
+            'event_type_canonical' => 'payment.failed',
+            'payload_json' => [
+                'resource' => [
+                    'id' => 'CAPTURE-456',
+                    'amount' => [
+                        'value' => '29.99',
+                        'currency_code' => 'USD',
+                    ],
+                    'custom_id' => (string) $user->id,
+                    'status_details' => [
+                        'reason' => 'INSUFFICIENT_FUNDS',
+                    ],
+                ],
+            ],
+            'headers_json' => [],
+            'signature_verified_at' => now(),
+            'processing_status' => 'pending',
+        ]);
+        
+        $handler = new PaymentDeniedHandler();
+        $handler->handle($event);
+        
+        $this->assertDatabaseHas('payments', [
+            'provider' => 'paypal',
+            'provider_payment_id' => 'CAPTURE-456',
+            'user_id' => $user->id,
+            'status' => 'failed',
+            'amount' => 2999,
+            'currency' => 'USD',
+        ]);
+    }
+    
     
 }
 
