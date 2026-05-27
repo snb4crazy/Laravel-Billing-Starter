@@ -9,6 +9,8 @@ use App\Billing\Providers\NullBillingProvider;
 use App\Billing\Providers\PayPalProvider;
 use App\Billing\Providers\StripeProvider;
 use Illuminate\Contracts\Container\Container;
+use App\Billing\Contracts\PaddleClientInterface;
+use App\Billing\Providers\PaddleProvider;
 
 /**
  * Resolves the active BillingProvider for a given provider name.
@@ -29,6 +31,7 @@ class ProviderManager
         return match ($name) {
             'stripe' => new StripeProvider($this->container->make(StripeClientInterface::class)),
             'paypal' => new PayPalProvider($this->container->make(PayPalClientInterface::class)),
+            'paddle' => new PaddleProvider($this->container->make(PaddleClientInterface::class)),
             default => new NullBillingProvider(),
         };
     }
