@@ -364,7 +364,7 @@ private function makeStripeSignatureHeader(string $rawPayload, string $secret): 
 - [ ] `webhook_events` table has correct retention policy set.
 - [ ] Failed-payment email notification enabled in Stripe Dashboard (Smart Retries).
 - [ ] Stripe Radar rules reviewed for fraud management.
-- [ ] Tested with live card in Stripe test mode (all three scenarios: success, fail, 3DS).
+- [ ] Tested with test card in Stripe test mode (all three scenarios: success, fail, 3DS).
 - [ ] `docs/release-checklist.md` billing section signed off.
 
 ---
