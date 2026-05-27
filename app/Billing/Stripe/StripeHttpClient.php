@@ -3,7 +3,6 @@
 namespace App\Billing\Stripe;
 
 use App\Billing\Contracts\StripeClientInterface;
-use Stripe\Customer;
 use Stripe\Exception\SignatureVerificationException;
 use Stripe\StripeClient;
 use Stripe\Webhook;
