@@ -47,15 +47,18 @@ class PaymentDeniedHandler
 
     private function resolveUser(array $resource): ?User
     {
-        // Look for user_id in supplementary_data or custom_id (if available)
-        $userId = data_get($resource, 'supplementary_data.related_ids.order_id')
-            ?? data_get($resource, 'custom_id');
+        $candidates = [
+            data_get($resource, 'custom_id'),
+            data_get($resource, 'supplementary_data.related_ids.order_id'),
+        ];
 
-        if (! is_numeric($userId)) {
-            return null;
+        foreach ($candidates as $userId) {
+            if (is_numeric($userId)) {
+                return User::query()->find((int) $userId);
+            }
         }
 
-        return User::query()->find((int) $userId);
+        return null;
     }
 
     private function resolveAmount(array $resource): int
