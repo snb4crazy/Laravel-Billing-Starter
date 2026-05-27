@@ -17,6 +17,7 @@ Current state of the Laravel Billing Starter — dependencies, directory map, mo
 |---|---|---|
 | `laravel/framework` | `^13.8` | Core framework |
 | `laravel/sanctum` | `^4.x` | Bearer token authentication for API |
+| `stripe/stripe-php` | `^20.x` | Stripe SDK for checkout, subscriptions, webhook verification |
 | `laravel/tinker` | `^3.0` | REPL for local debugging |
 
 ### Development
@@ -37,8 +38,24 @@ app/
 ├── Billing/
 │   ├── Contracts/
 │   │   └── BillingProvider.php         # Provider adapter interface
+│   │   ├── StripeClientInterface.php
+│   │   └── PayPalClientInterface.php
+│   ├── Stripe/
+│   │   ├── StripeHttpClient.php
+│   │   └── NullStripeClient.php
+│   ├── PayPal/
+│   │   ├── PayPalHttpClient.php
+│   │   └── NullPayPalClient.php
+│   ├── Webhooks/
+│   │   ├── WebhookVerifierRegistry.php
+│   │   └── Verifiers/
+│   │       ├── StripeWebhookVerifier.php
+│   │       ├── PayPalWebhookVerifier.php
+│   │       └── HmacWebhookVerifier.php
 │   ├── Providers/
-│   │   └── NullBillingProvider.php     # Stub adapter (local/test)
+│   │   ├── StripeProvider.php
+│   │   ├── PayPalProvider.php
+│   │   └── NullBillingProvider.php
 │   └── ProviderManager.php             # Resolves provider adapter
 │
 ├── Http/
@@ -55,7 +72,7 @@ app/
 │   ├── Middleware/
 │   │   ├── EnsureBillingAdmin.php      # Role guard: admin only
 │   │   ├── RequireIdempotencyKey.php   # Idempotency-Key header enforcement
-│   │   └── VerifyWebhookSignature.php  # HMAC-SHA256 webhook signature check
+│   │   └── VerifyWebhookSignature.php  # Provider-aware signature verification
 │   └── Requests/
 │       └── Billing/
 │           ├── CreateCheckoutSessionRequest.php
@@ -112,7 +129,12 @@ docs/
 | `default_provider` | `BILLING_DEFAULT_PROVIDER` | `stripe` | Active payment provider |
 | `idempotency.ttl_seconds` | `BILLING_IDEMPOTENCY_TTL_SECONDS` | `600` | Cache window for duplicate request detection |
 | `webhooks.tolerance_seconds` | `BILLING_WEBHOOK_TOLERANCE_SECONDS` | `300` | Max age of a valid webhook timestamp |
-| `webhooks.providers.*.signing_secret` | `{PROVIDER}_WEBHOOK_SECRET` | — | HMAC signing secret per provider |
+| `providers.stripe.secret_key` | `STRIPE_SECRET_KEY` | — | Stripe secret API key |
+| `providers.paypal.client_id` | `PAYPAL_CLIENT_ID` | — | PayPal REST client ID |
+| `providers.paypal.secret` | `PAYPAL_SECRET` | — | PayPal REST client secret |
+| `providers.paypal.base_url` | `PAYPAL_BASE_URL` | `https://api-m.sandbox.paypal.com` | PayPal API base URL |
+| `webhooks.providers.stripe.signing_secret` | `STRIPE_WEBHOOK_SECRET` | — | Stripe webhook signing secret |
+| `webhooks.providers.paypal.signing_secret` | `PAYPAL_WEBHOOK_ID` | — | PayPal webhook ID used for verify-webhook-signature |
 
 ## Database Schema (Current)
 
@@ -237,15 +259,19 @@ Client redirects to checkout_url (hosted page on provider)
 
 ```
 Payment Provider (Stripe/PayPal/etc.)
-  ─── POST /api/billing/webhooks/stripe
-       Headers: X-Billing-Timestamp: {unix}
-                X-Billing-Signature: {hmac-sha256}
+  ─── POST /api/billing/webhooks/{provider}
+       Headers:
+         Stripe: Stripe-Signature: t=...,v1=...
+         PayPal: PayPal-Transmission-Id/Time/Sig + PayPal-Cert-Url/Auth-Algo
+         Fallback providers: X-Billing-Timestamp + X-Billing-Signature
        Body:    { id: "evt_...", type: "invoice.paid", ... }
   ─── [throttle:webhooks] ──► 429 if abused
   ─── [webhook.signature]
-      ─── reads signing_secret from config/billing.php
-      ─── checks timestamp within tolerance_seconds
-      ─── HMAC-SHA256(timestamp.body, secret) == signature
+      ─── reads provider signing secret / webhook ID from config/billing.php
+      ─── dispatches to provider verifier from WebhookVerifierRegistry
+      ─── Stripe: SDK signature check
+      ─── PayPal: verify-webhook-signature API call
+      ─── Fallback: HMAC(timestamp.body, secret)
       ─── ──► 401 on any failure
   ─── WebhookController@handle
       ─── validates id + type fields
@@ -277,9 +303,12 @@ BillingProvider (interface)
     createCheckoutSession(user, plan, options) -> { session_id, checkout_url }
     createSubscription(user, plan, interval)  -> { provider_subscription_id, status }
 
-NullBillingProvider (current)
-    Returns stub data with generated ULIDs.
-    Allows routes and flows to be fully tested without real credentials.
+StripeProvider / PayPalProvider
+    Real provider adapters for hosted checkout and subscriptions.
+
+NullStripeClient / NullPayPalClient
+    Stub HTTP clients used when provider credentials are not configured.
+    Allows local and test flows to execute without external network calls.
 
 ProviderManager
     Resolves provider by name.
@@ -288,7 +317,7 @@ ProviderManager
 
 ## What Is Not Yet Implemented (Next Phases)
 
-- Real Stripe (or other) provider adapter.
+- Additional provider adapters beyond Stripe and PayPal.
 - Domain event dispatch from `WebhookController` (queued handlers).
 - Subscription state updates from webhook events.
 - Refund workflow.

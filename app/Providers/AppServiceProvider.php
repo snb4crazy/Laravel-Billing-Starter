@@ -2,7 +2,10 @@
 
 namespace App\Providers;
 
+use App\Billing\Contracts\PayPalClientInterface;
 use App\Billing\Contracts\StripeClientInterface;
+use App\Billing\PayPal\NullPayPalClient;
+use App\Billing\PayPal\PayPalHttpClient;
 use App\Billing\Webhooks\WebhookVerifierRegistry;
 use App\Billing\Stripe\NullStripeClient;
 use App\Billing\Stripe\StripeHttpClient;
@@ -27,10 +30,25 @@ class AppServiceProvider extends ServiceProvider
             return new StripeHttpClient($apiKey);
         });
 
+        $this->app->bind(PayPalClientInterface::class, function (): PayPalClientInterface {
+            $clientId = (string) config('billing.providers.paypal.client_id', '');
+            $clientSecret = (string) config('billing.providers.paypal.secret', '');
+            $baseUrl = (string) config('billing.providers.paypal.base_url', 'https://api-m.sandbox.paypal.com');
+
+            if ($clientId === '' || $clientSecret === '') {
+                return new NullPayPalClient();
+            }
+
+            return new PayPalHttpClient($clientId, $clientSecret, $baseUrl);
+        });
+
         $this->app->singleton(WebhookVerifierRegistry::class, function (): WebhookVerifierRegistry {
             $toleranceSeconds = max((int) config('billing.webhooks.tolerance_seconds', 300), 60);
 
-            return new WebhookVerifierRegistry($toleranceSeconds);
+            return new WebhookVerifierRegistry(
+                $toleranceSeconds,
+                $this->app->make(PayPalClientInterface::class),
+            );
         });
     }
 

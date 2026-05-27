@@ -3,8 +3,10 @@
 namespace App\Billing;
 
 use App\Billing\Contracts\BillingProvider;
+use App\Billing\Contracts\PayPalClientInterface;
 use App\Billing\Contracts\StripeClientInterface;
 use App\Billing\Providers\NullBillingProvider;
+use App\Billing\Providers\PayPalProvider;
 use App\Billing\Providers\StripeProvider;
 use Illuminate\Contracts\Container\Container;
 
@@ -26,6 +28,7 @@ class ProviderManager
 
         return match ($name) {
             'stripe' => new StripeProvider($this->container->make(StripeClientInterface::class)),
+            'paypal' => new PayPalProvider($this->container->make(PayPalClientInterface::class)),
             default => new NullBillingProvider(),
         };
     }

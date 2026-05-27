@@ -24,6 +24,7 @@ This project is intentionally modular so you can adopt it piece by piece in an e
 - Role baseline (`admin`, `customer`)
 - Policy-based authorization
 - Stripe adapter layer with extractable boundaries
+- PayPal adapter layer with extractable boundaries
 
 ## Security Defaults
 
@@ -89,6 +90,22 @@ Detailed setup and extraction guide:
 
 - `docs/stripe-integration-guide.md`
 
+## PayPal Setup (Sandbox)
+
+Set these env vars in `.env`:
+
+```dotenv
+BILLING_DEFAULT_PROVIDER=paypal
+PAYPAL_CLIENT_ID=...
+PAYPAL_SECRET=...
+PAYPAL_BASE_URL=https://api-m.sandbox.paypal.com
+PAYPAL_WEBHOOK_ID=...
+```
+
+Detailed setup and extraction guide:
+
+- `docs/paypal-integration-guide.md`
+
 ## Documentation Index
 
 - `docs/planning.md`
@@ -103,6 +120,7 @@ Detailed setup and extraction guide:
 - `docs/release-checklist.md`
 - `docs/api/openapi.yaml`
 - `docs/stripe-integration-guide.md`
+- `docs/paypal-integration-guide.md`
 
 ## Testing
 
