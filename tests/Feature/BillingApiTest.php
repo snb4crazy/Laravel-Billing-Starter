@@ -76,6 +76,17 @@ class BillingApiTest extends TestCase
             ->assertJsonPath('data.email', $user->email);
     }
     
+    public function test_logout_revokes_token(): void
+    {
+        $user = User::factory()->create();
+        $token = $user->createToken('api')->plainTextToken;
+        
+        $this->withToken($token)->postJson('/api/auth/logout')->assertOk();
+        
+        // Confirm the token record was deleted from the database.
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+    }
+    
     
 
     public function test_authenticated_user_can_list_active_plans(): void
