@@ -12,6 +12,13 @@ return [
         'stripe' => [
             'secret_key' => env('STRIPE_SECRET_KEY'),
         ],
+        'paypal' => [
+            'client_id' => env('PAYPAL_CLIENT_ID'),
+            'secret' => env('PAYPAL_SECRET'),
+            'base_url' => env('PAYPAL_BASE_URL', 'https://api-m.sandbox.paypal.com'),
+            'return_url' => env('PAYPAL_RETURN_URL', env('APP_URL').'/billing/paypal/return'),
+            'cancel_url' => env('PAYPAL_CANCEL_URL', env('APP_URL').'/billing/paypal/cancel'),
+        ],
     ],
 
     'webhooks' => [
@@ -22,7 +29,8 @@ return [
                 'signing_secret' => env('STRIPE_WEBHOOK_SECRET'),
             ],
             'paypal' => [
-                'signing_secret' => env('PAYPAL_WEBHOOK_SECRET'),
+                // PayPal uses webhook ID instead of a shared HMAC secret.
+                'signing_secret' => env('PAYPAL_WEBHOOK_ID', env('PAYPAL_WEBHOOK_SECRET')),
             ],
             'paddle' => [
                 'signing_secret' => env('PADDLE_WEBHOOK_SECRET'),
