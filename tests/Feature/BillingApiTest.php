@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Billing\Contracts\PayPalClientInterface;
 use App\Models\Plan;
+use App\Models\Payment;
 use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -228,6 +230,49 @@ class BillingApiTest extends TestCase
         );
     }
 
+    private function fakePayPalWebhookVerification(): void
+    {
+        $this->app->bind(PayPalClientInterface::class, function (): PayPalClientInterface {
+            return new class implements PayPalClientInterface
+            {
+                public function createCheckoutOrder(array $params): array
+                {
+                    return ['id' => 'ORDER-FAKE', 'status' => 'CREATED', 'approve_url' => 'https://example.test'];
+                }
+
+                public function createSubscription(array $params): array
+                {
+                    return ['id' => 'SUB-FAKE', 'status' => 'APPROVAL_PENDING', 'approve_url' => 'https://example.test'];
+                }
+
+                public function verifyWebhookSignature(array $params): bool
+                {
+                    return true;
+                }
+            };
+        });
+    }
+
+    private function sendPayPalWebhook(array $payload): \Illuminate\Testing\TestResponse
+    {
+        config()->set('billing.providers.paypal.client_id', 'paypal-client-id-test');
+        config()->set('billing.providers.paypal.secret', 'paypal-client-secret-test');
+        config()->set('billing.webhooks.providers.paypal.signing_secret', 'WH-TEST-ID');
+        $this->fakePayPalWebhookVerification();
+
+        return $this->postJson(
+            '/api/billing/webhooks/paypal',
+            $payload,
+            [
+                'Paypal-Transmission-Id' => 'tx-001',
+                'Paypal-Transmission-Time' => now()->toIso8601String(),
+                'Paypal-Cert-Url' => 'https://api-m.sandbox.paypal.com/certs/cert.pem',
+                'Paypal-Auth-Algo' => 'SHA256withRSA',
+                'Paypal-Transmission-Sig' => 'stub-signature',
+            ],
+        );
+    }
+
     public function test_webhook_signature_is_verified_and_duplicate_events_are_deduped(): void
     {
         $payload = ['id' => 'evt_dedup_001', 'type' => 'invoice.paid'];
@@ -246,6 +291,8 @@ class BillingApiTest extends TestCase
             ['Stripe-Signature' => 't='.now()->timestamp.',v1=invalidsignature'],
         )->assertUnauthorized();
     }
+
+    
 
     public function test_paypal_webhook_is_rejected_when_paypal_credentials_are_missing(): void
     {
