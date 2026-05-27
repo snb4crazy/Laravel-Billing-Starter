@@ -367,7 +367,7 @@ class BillingApiTest extends TestCase
         
         $payload = [
             'id' => 'WH-SUB-CANCEL-001',
-            'type' => 'BILLING.SUBSCRIPTION.CANCELLED',
+            'event_type' => 'BILLING.SUBSCRIPTION.CANCELLED',
             'resource' => [
                 'id' => 'I-SUB-CANCEL-001',
             ],
