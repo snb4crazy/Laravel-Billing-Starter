@@ -34,16 +34,19 @@ class WebhookController extends Controller
     {
         $payload = $request->validate([
             'id' => ['required', 'string', 'max:255'],
-            'type' => ['required', 'string', 'max:255'],
+            'type' => ['nullable', 'string', 'max:255', 'required_without:event_type'],
+            'event_type' => ['nullable', 'string', 'max:255', 'required_without:type'],
         ]);
 
-        $canonicalType = self::EVENT_MAP[$payload['type']] ?? null;
+        $eventTypeRaw = (string) ($payload['type'] ?? $payload['event_type']);
+
+        $canonicalType = self::EVENT_MAP[$eventTypeRaw] ?? null;
 
         try {
             $event = WebhookEvent::query()->create([
                 'provider' => $provider,
                 'external_event_id' => $payload['id'],
-                'event_type_raw' => $payload['type'],
+                'event_type_raw' => $eventTypeRaw,
                 'event_type_canonical' => $canonicalType,
                 'payload_json' => $request->json()->all(),
                 'headers_json' => [
