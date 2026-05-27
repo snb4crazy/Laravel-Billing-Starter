@@ -44,10 +44,11 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(WebhookVerifierRegistry::class, function (): WebhookVerifierRegistry {
             $toleranceSeconds = max((int) config('billing.webhooks.tolerance_seconds', 300), 60);
+            $payPalClient = $this->app->make(PayPalClientInterface::class);
 
             return new WebhookVerifierRegistry(
                 $toleranceSeconds,
-                $this->app->make(PayPalClientInterface::class),
+                $payPalClient instanceof NullPayPalClient ? null : $payPalClient,
             );
         });
     }
