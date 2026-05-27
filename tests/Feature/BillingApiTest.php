@@ -292,6 +292,35 @@ class BillingApiTest extends TestCase
         )->assertUnauthorized();
     }
 
+    public function test_stripe_charge_succeeded_webhook_creates_payment(): void
+    {
+        $user = User::factory()->create();
+        
+        $payload = [
+            'id' => 'evt_charge_succeeded_001',
+            'type' => 'charge.succeeded',
+            'data' => [
+                'object' => [
+                    'id' => 'ch_001',
+                    'amount' => 2500,
+                    'currency' => 'usd',
+                    'metadata' => ['user_id' => (string) $user->id],
+                ],
+            ],
+        ];
+        
+        $this->sendStripeWebhook($payload)->assertCreated();
+        
+        $this->assertDatabaseHas('payments', [
+            'provider' => 'stripe',
+            'provider_payment_id' => 'ch_001',
+            'user_id' => $user->id,
+            'status' => 'succeeded',
+            'amount' => 2500,
+            'currency' => 'USD',
+        ]);
+    }
+    
     
 
     public function test_paypal_webhook_is_rejected_when_paypal_credentials_are_missing(): void
