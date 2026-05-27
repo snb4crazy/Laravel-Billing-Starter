@@ -2,7 +2,9 @@
 
 namespace App\Billing\Webhooks;
 
+use App\Billing\Contracts\PayPalClientInterface;
 use App\Billing\Webhooks\Verifiers\HmacWebhookVerifier;
+use App\Billing\Webhooks\Verifiers\PayPalWebhookVerifier;
 use App\Billing\Webhooks\Verifiers\StripeWebhookVerifier;
 use App\Billing\Webhooks\Verifiers\WebhookVerifier;
 
@@ -18,11 +20,15 @@ class WebhookVerifierRegistry
     /** @var array<string, WebhookVerifier> */
     private array $verifiers;
 
-    public function __construct(int $toleranceSeconds = 300)
+    public function __construct(int $toleranceSeconds = 300, ?PayPalClientInterface $payPal = null)
     {
         $this->verifiers = [
             'stripe' => new StripeWebhookVerifier($toleranceSeconds),
         ];
+
+        if ($payPal !== null) {
+            $this->verifiers['paypal'] = new PayPalWebhookVerifier($payPal);
+        }
 
         $this->default = new HmacWebhookVerifier($toleranceSeconds);
     }
