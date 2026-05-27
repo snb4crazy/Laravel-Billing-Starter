@@ -10,7 +10,7 @@ class SubscriptionCanceledHandler
     public function handle(WebhookEvent $event): void
     {
         $payload = $event->payload_json;
-        $object = (array) data_get($payload, 'data.object', []);
+        $object = (array) (data_get($payload, 'data.object') ?? data_get($payload, 'resource', []));
 
         $providerSubscriptionId = (string) data_get($object, 'id', data_get($object, 'subscription', ''));
 
