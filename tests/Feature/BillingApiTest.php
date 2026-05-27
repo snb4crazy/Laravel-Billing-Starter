@@ -510,6 +510,42 @@ class BillingApiTest extends TestCase
         ]);
     }
 
+    public function test_paddle_transaction_failed_webhook_creates_failed_payment(): void
+    {
+        $user = User::factory()->create();
+        
+        $payload = [
+            'event_id' => 'evt_paddle_txn_failed_001',
+            'event_type' => 'transaction.payment_failed',
+            'occurred_at' => now()->toIso8601String(),
+            'data' => [
+                'id' => 'txn_paddle_002',
+                'currency_code' => 'USD',
+                'details' => [
+                    'total' => 1999,
+                ],
+                'status' => 'PAYMENT_DECLINED',
+                'custom_data' => [
+                    'user_id' => (string) $user->id,
+                ],
+            ],
+        ];
+        
+        $this->sendPaddleWebhook($payload)->assertCreated();
+        
+        $this->assertDatabaseHas('payments', [
+            'provider' => 'paddle',
+            'provider_payment_id' => 'txn_paddle_002',
+            'user_id' => $user->id,
+            'status' => 'failed',
+            'amount' => 1999,
+            'currency' => 'USD',
+        ]);
+        
+        $payment = Payment::query()->where('provider_payment_id', 'txn_paddle_002')->first();
+        $this->assertSame('PAYMENT_DECLINED', $payment?->metadata['failure_reason']);
+    }
+    
     
 
 
