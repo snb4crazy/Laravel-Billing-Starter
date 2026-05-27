@@ -44,6 +44,8 @@ class StripeWebhookVerifier implements WebhookVerifier
                 $secret,
                 $this->toleranceSeconds,
             );
+        } catch (\UnexpectedValueException $exception) {
+            abort(Response::HTTP_BAD_REQUEST, 'Invalid Stripe webhook payload: '.$exception->getMessage());
         } catch (SignatureVerificationException $exception) {
             abort(Response::HTTP_UNAUTHORIZED, 'Stripe webhook signature verification failed: '.$exception->getMessage());
         }

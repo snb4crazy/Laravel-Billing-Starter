@@ -340,6 +340,8 @@ class BillingApiTest extends TestCase
         $this->sendStripeWebhook($payload)->assertCreated();
 
         $this->assertDatabaseHas('invoices', [
+            'user_id' => $user->id,
+            'provider' => 'stripe',
             'provider_invoice_id' => 'in_failed_001',
             'status' => 'uncollectible',
         ]);
