@@ -96,6 +96,33 @@ class PayPalWebhookHandlersTest extends TestCase
         $this->assertNotNull($payment->paid_at);
     }
     
+    public function test_payment_completed_handler_skips_without_capture_id(): void
+    {
+        $event = WebhookEvent::create([
+            'provider' => 'paypal',
+            'external_event_id' => 'WH-CAPTURE-001',
+            'event_type_raw' => 'PAYMENT.CAPTURE.COMPLETED',
+            'event_type_canonical' => 'payment.succeeded',
+            'payload_json' => [
+                'resource' => [
+                    'id' => '',
+                    'amount' => [
+                        'value' => '19.99',
+                        'currency_code' => 'USD',
+                    ],
+                ],
+            ],
+            'headers_json' => [],
+            'signature_verified_at' => now(),
+            'processing_status' => 'pending',
+        ]);
+        
+        $handler = new PaymentCompletedHandler();
+        $handler->handle($event);
+        
+        $this->assertDatabaseCount('payments', 0);
+    }
+    
     
 }
 
