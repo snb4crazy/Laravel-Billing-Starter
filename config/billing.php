@@ -3,9 +3,15 @@
 return [
     'default_provider' => env('BILLING_DEFAULT_PROVIDER', 'stripe'),
 
-    // Require idempotency keys on mutation endpoints to prevent duplicate writes.
     'idempotency' => [
         'ttl_seconds' => (int) env('BILLING_IDEMPOTENCY_TTL_SECONDS', 600),
+    ],
+
+    // Provider-specific API credentials
+    'providers' => [
+        'stripe' => [
+            'secret_key' => env('STRIPE_SECRET_KEY'),
+        ],
     ],
 
     'webhooks' => [
