@@ -7,11 +7,14 @@ use App\Billing\Providers\StripeProvider;
 use App\Models\Plan;
 use App\Models\User;
 use Mockery;
+use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use Mockery\MockInterface;
 use Tests\TestCase;
 
 class StripeProviderTest extends TestCase
 {
+    use MockeryPHPUnitIntegration;
+
     // -----------------------------------------------------------------------
     // createCheckoutSession — subscription plan
     // -----------------------------------------------------------------------
