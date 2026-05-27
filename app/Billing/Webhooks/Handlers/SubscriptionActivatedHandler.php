@@ -3,7 +3,6 @@
 namespace App\Billing\Webhooks\Handlers;
 
 use App\Models\Subscription;
-use App\Models\User;
 use App\Models\WebhookEvent;
 
 class SubscriptionActivatedHandler
