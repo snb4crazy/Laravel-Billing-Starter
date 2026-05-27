@@ -11,7 +11,7 @@ class PaymentDeniedHandler
     public function handle(WebhookEvent $event): void
     {
         $payload = $event->payload_json;
-        $details = $this->extractPaymentDetails($payload);
+        $details = (array) (data_get($payload, 'resource') ?? data_get($payload, 'data.object', []));
 
         $providerPaymentId = (string) data_get($details, 'id', '');
 
