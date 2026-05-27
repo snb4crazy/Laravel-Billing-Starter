@@ -77,12 +77,18 @@ class StripeProvider implements BillingProvider
                 ],
             ];
         } else {
+            $amount = (int) ($options['amount'] ?? 0);
+
+            if ($amount <= 0) {
+                throw new \InvalidArgumentException('A positive amount is required for one-time Stripe Checkout sessions.');
+            }
+
             $params['mode'] = 'payment';
             $params['line_items'] = [[
                 'price_data' => [
                     'currency' => strtolower($options['currency'] ?? 'usd'),
                     'product_data' => ['name' => 'One-time payment'],
-                    'unit_amount' => (int) ($options['amount'] ?? 0),
+                    'unit_amount' => $amount,
                 ],
                 'quantity' => 1,
             ]];
