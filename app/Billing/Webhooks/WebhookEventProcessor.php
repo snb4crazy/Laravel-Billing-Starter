@@ -22,16 +22,27 @@ class WebhookEventProcessor
     public function process(WebhookEvent $event): void
     {
         DB::transaction(function () use ($event): void {
-            match ($event->event_type_canonical) {
-                'checkout.completed' => $this->checkoutCompletedHandler->handle($event),
-                'invoice.paid' => $this->invoicePaidHandler->handle($event),
-                'invoice.payment_failed' => $this->invoicePaymentFailedHandler->handle($event),
-                'subscription.canceled' => $this->subscriptionCanceledHandler->handle($event),
-                default => null,
+            $handled = match ($event->event_type_canonical) {
+                'checkout.completed' => tap(true, fn () => $this->checkoutCompletedHandler->handle($event)),
+                'invoice.paid' => tap(true, fn () => $this->invoicePaidHandler->handle($event)),
+                'invoice.payment_failed' => tap(true, fn () => $this->invoicePaymentFailedHandler->handle($event)),
+                'subscription.canceled' => tap(true, fn () => $this->subscriptionCanceledHandler->handle($event)),
+                default => false,
             };
 
+            if ($handled) {
+                $event->forceFill([
+                    'processing_status' => 'processed',
+                    'processed_at' => now(),
+                    'failure_reason' => null,
+                ])->save();
+
+                return;
+            }
+
             $event->forceFill([
-                'processing_status' => 'processed',
+                'processing_status' => 'ignored',
+                'failure_reason' => 'No webhook handler implemented for canonical event type: '.(string) $event->event_type_canonical,
                 'processed_at' => now(),
             ])->save();
         });

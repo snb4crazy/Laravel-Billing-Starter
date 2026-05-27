@@ -226,7 +226,38 @@ class BillingApiTest extends TestCase
             'message' => 'Duplicate event ignored.',
         ]);
     }
-    
+
+    public function test_unhandled_canonical_webhook_event_is_marked_ignored(): void
+    {
+        config()->set('billing.webhooks.providers.stripe.signing_secret', 'whsec_test_secret');
+
+        $payload = [
+            'id' => 'evt_unhandled_001',
+            'type' => 'customer.subscription.updated',
+            'data' => [
+                'object' => [
+                    'id' => 'sub_unknown_001',
+                ],
+            ],
+        ];
+
+        $timestamp = now()->timestamp;
+        $rawPayload = json_encode($payload, JSON_THROW_ON_ERROR);
+        $signature = hash_hmac('sha256', $timestamp.'.'.$rawPayload, 'whsec_test_secret');
+
+        $this->postJson('/api/billing/webhooks/stripe', $payload, [
+            'X-Billing-Timestamp' => (string) $timestamp,
+            'X-Billing-Signature' => $signature,
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('webhook_events', [
+            'provider' => 'stripe',
+            'external_event_id' => 'evt_unhandled_001',
+            'event_type_canonical' => 'subscription.updated',
+            'processing_status' => 'ignored',
+        ]);
+    }
+
     public function test_invoice_paid_webhook_creates_paid_invoice_and_activates_subscription(): void
     {
         config()->set('billing.webhooks.providers.stripe.signing_secret', 'whsec_test_secret');
