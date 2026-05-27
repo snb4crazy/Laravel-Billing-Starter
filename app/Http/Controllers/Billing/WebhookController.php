@@ -28,16 +28,23 @@ class WebhookController extends Controller
         'PAYMENT.CAPTURE.DENIED' => 'payment.failed',
         'BILLING.SUBSCRIPTION.ACTIVATED' => 'subscription.activated',
         'BILLING.SUBSCRIPTION.CANCELLED' => 'subscription.canceled',
+        // Paddle events
+        'transaction.completed' => 'payment.succeeded',
+        'transaction.payment_failed' => 'payment.failed',
+        'subscription.created' => 'subscription.created',
+        'subscription.canceled' => 'subscription.canceled',
     ];
 
     public function handle(Request $request, string $provider, WebhookEventProcessor $processor): JsonResponse
     {
         $payload = $request->validate([
-            'id' => ['required', 'string', 'max:255'],
+            'id' => ['nullable', 'string', 'max:255', 'required_without:event_id'],
+            'event_id' => ['nullable', 'string', 'max:255', 'required_without:id'],
             'type' => ['nullable', 'string', 'max:255', 'required_without:event_type'],
             'event_type' => ['nullable', 'string', 'max:255', 'required_without:type'],
         ]);
 
+        $externalEventId = (string) ($payload['id'] ?? $payload['event_id']);
         $eventTypeRaw = (string) ($payload['type'] ?? $payload['event_type']);
 
         $canonicalType = self::EVENT_MAP[$eventTypeRaw] ?? null;
@@ -45,7 +52,7 @@ class WebhookController extends Controller
         try {
             $event = WebhookEvent::query()->create([
                 'provider' => $provider,
-                'external_event_id' => $payload['id'],
+                'external_event_id' => $externalEventId,
                 'event_type_raw' => $eventTypeRaw,
                 'event_type_canonical' => $canonicalType,
                 'payload_json' => $request->json()->all(),
