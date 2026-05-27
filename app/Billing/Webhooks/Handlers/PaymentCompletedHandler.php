@@ -11,24 +11,23 @@ class PaymentCompletedHandler
     public function handle(WebhookEvent $event): void
     {
         $payload = $event->payload_json;
-        $resource = (array) data_get($payload, 'resource', []);
+        $details = $this->extractPaymentDetails($payload);
 
-        // PayPal capture ID
-        $providerPaymentId = (string) data_get($resource, 'id', '');
+        $providerPaymentId = (string) data_get($details, 'id', '');
 
         if ($providerPaymentId === '') {
             return;
         }
 
-        $user = $this->resolveUser($resource);
+        $user = $this->resolveUser($details);
 
         if (! $user) {
             return;
         }
 
         // Resolve the amount in cents (PayPal returns as string with decimals)
-        $amount = $this->resolveAmount($resource);
-        $currency = (string) data_get($resource, 'amount.currency_code', 'USD');
+        $amount = $this->resolveAmount($details);
+        $currency = (string) data_get($details, 'amount.currency_code', data_get($details, 'currency', 'USD'));
 
         Payment::query()->updateOrCreate([
             'provider' => $event->provider,
@@ -41,16 +40,22 @@ class PaymentCompletedHandler
             'paid_at' => now(),
             'metadata' => [
                 'event_id' => $event->external_event_id,
-                'supplementary_data' => (array) data_get($resource, 'supplementary_data', []),
+                'supplementary_data' => (array) data_get($details, 'supplementary_data', []),
             ],
         ]);
     }
 
-    private function resolveUser(array $resource): ?User
+    private function extractPaymentDetails(array $payload): array
     {
-        // Look for user_id in supplementary_data or custom_id (if available)
-        $userId = data_get($resource, 'supplementary_data.related_ids.order_id')
-            ?? data_get($resource, 'custom_id');
+        return (array) (data_get($payload, 'resource') ?? data_get($payload, 'data.object', []));
+    }
+
+    private function resolveUser(array $details): ?User
+    {
+        $userId = data_get($details, 'metadata.user_id')
+            ?? data_get($details, 'user_id')
+            ?? data_get($details, 'supplementary_data.related_ids.order_id')
+            ?? data_get($details, 'custom_id');
 
         if (! is_numeric($userId)) {
             return null;
@@ -59,13 +64,15 @@ class PaymentCompletedHandler
         return User::query()->find((int) $userId);
     }
 
-    private function resolveAmount(array $resource): int
+    private function resolveAmount(array $details): int
     {
-        $amount = (string) data_get($resource, 'amount.value', 0);
-        
-        // PayPal amount comes as decimal string (e.g., "19.99")
-        // Convert to cents as integer
-        return (int) round((float) $amount * 100);
+        $paypalAmount = data_get($details, 'amount.value');
+
+        if ($paypalAmount !== null) {
+            return (int) round(((float) $paypalAmount) * 100);
+        }
+
+        return (int) data_get($details, 'amount', data_get($details, 'amount_total', 0));
     }
 }
 
