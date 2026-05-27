@@ -3,7 +3,6 @@
 namespace App\Billing\Webhooks\Verifiers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
