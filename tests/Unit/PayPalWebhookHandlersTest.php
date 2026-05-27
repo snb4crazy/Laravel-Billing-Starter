@@ -191,6 +191,40 @@ class PayPalWebhookHandlersTest extends TestCase
         ]);
     }
     
+    public function test_payment_denied_handler_stores_failure_reason(): void
+    {
+        $user = User::factory()->create();
+        
+        $event = WebhookEvent::create([
+            'provider' => 'paypal',
+            'external_event_id' => 'WH-CAPTURE-DENIED',
+            'event_type_raw' => 'PAYMENT.CAPTURE.DENIED',
+            'event_type_canonical' => 'payment.failed',
+            'payload_json' => [
+                'resource' => [
+                    'id' => 'CAPTURE-456',
+                    'amount' => [
+                        'value' => '29.99',
+                        'currency_code' => 'USD',
+                    ],
+                    'custom_id' => (string) $user->id,
+                    'status_details' => [
+                        'reason' => 'INSUFFICIENT_FUNDS',
+                    ],
+                ],
+            ],
+            'headers_json' => [],
+            'signature_verified_at' => now(),
+            'processing_status' => 'pending',
+        ]);
+        
+        $handler = new PaymentDeniedHandler();
+        $handler->handle($event);
+        
+        $payment = Payment::where('provider_payment_id', 'CAPTURE-456')->first();
+        $this->assertSame('INSUFFICIENT_FUNDS', $payment->metadata['failure_reason']);
+    }
+    
     
 }
 
