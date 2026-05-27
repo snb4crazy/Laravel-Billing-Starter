@@ -12,6 +12,8 @@ class PaymentController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', Payment::class);
+
         /** @var User $user */
         $user = $request->user();
 

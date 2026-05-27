@@ -7,9 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Billing\StoreSubscriptionRequest;
 use App\Models\Plan;
 use App\Models\Subscription;
-use App\Models\User;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 class SubscriptionController extends Controller
@@ -35,14 +33,9 @@ class SubscriptionController extends Controller
         ], Response::HTTP_CREATED);
     }
 
-    public function cancel(Request $request, Subscription $subscription): JsonResponse
+    public function cancel(Subscription $subscription): JsonResponse
     {
-        /** @var User|null $user */
-        $user = $request->user();
-
-        if (! $user || ($subscription->user_id !== $user->id && ! $user->isAdmin())) {
-            abort(Response::HTTP_FORBIDDEN);
-        }
+        $this->authorize('cancel', $subscription);
 
         if ($subscription->status !== 'canceled') {
             $subscription->forceFill([

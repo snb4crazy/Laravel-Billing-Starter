@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers\Billing;
 
+use App\Billing\Webhooks\WebhookEventProcessor;
 use App\Http\Controllers\Controller;
 use App\Models\WebhookEvent;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Throwable;
 use Symfony\Component\HttpFoundation\Response;
 
 class WebhookController extends Controller
@@ -22,7 +24,7 @@ class WebhookController extends Controller
         'charge.failed' => 'payment.failed',
     ];
 
-    public function handle(Request $request, string $provider): JsonResponse
+    public function handle(Request $request, string $provider, WebhookEventProcessor $processor): JsonResponse
     {
         $payload = $request->validate([
             'id' => ['required', 'string', 'max:255'],
@@ -43,9 +45,8 @@ class WebhookController extends Controller
                     'x_billing_signature' => $request->header('X-Billing-Signature'),
                 ],
                 'signature_verified_at' => now(),
-                'processing_status' => 'processed',
+                'processing_status' => 'pending',
                 'attempt_count' => 1,
-                'processed_at' => now(),
             ]);
         } catch (QueryException $exception) {
             $sqlState = (string) $exception->getCode();
@@ -57,6 +58,19 @@ class WebhookController extends Controller
             }
 
             throw $exception;
+        }
+
+        try {
+            $processor->process($event);
+        } catch (Throwable $exception) {
+            $event->forceFill([
+                'processing_status' => 'failed',
+                'failure_reason' => $exception->getMessage(),
+            ])->save();
+
+            return response()->json([
+                'message' => 'Webhook processing failed.',
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
         return response()->json([

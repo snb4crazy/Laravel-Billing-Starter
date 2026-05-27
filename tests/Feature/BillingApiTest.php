@@ -179,6 +179,27 @@ class BillingApiTest extends TestCase
         $second->assertForbidden();
     }
 
+    public function test_user_cannot_cancel_another_users_subscription(): void
+    {
+        $owner = User::factory()->create();
+        $otherUser = User::factory()->create();
+
+        $subscription = Subscription::query()->create([
+            'user_id' => $owner->id,
+            'provider' => 'stripe',
+            'provider_subscription_id' => 'sub_owner_001',
+            'status' => 'active',
+        ]);
+
+        $token = $otherUser->createToken('api')->plainTextToken;
+
+        $this->withToken($token)
+            ->postJson('/api/billing/subscriptions/'.$subscription->id.'/cancel', [], [
+                'Idempotency-Key' => 'idem-cancel-foreign-001',
+            ])
+            ->assertForbidden();
+    }
+
     public function test_webhook_signature_is_verified_and_duplicate_events_are_deduped(): void
     {
         config()->set('billing.webhooks.providers.stripe.signing_secret', 'whsec_test_secret');
@@ -203,6 +224,152 @@ class BillingApiTest extends TestCase
         $first->assertCreated();
         $second->assertOk()->assertJson([
             'message' => 'Duplicate event ignored.',
+        ]);
+    }
+    
+    public function test_invoice_paid_webhook_creates_paid_invoice_and_activates_subscription(): void
+    {
+        config()->set('billing.webhooks.providers.stripe.signing_secret', 'whsec_test_secret');
+        
+        $user = User::factory()->create();
+        
+        Subscription::query()->create([
+            'user_id' => $user->id,
+            'provider' => 'stripe',
+            'provider_subscription_id' => 'sub_paid_001',
+            'status' => 'incomplete',
+        ]);
+        
+        $payload = [
+            'id' => 'evt_invoice_paid_001',
+            'type' => 'invoice.paid',
+            'data' => [
+                'object' => [
+                    'id' => 'in_paid_001',
+                    'number' => 'INV-1001',
+                    'amount_due' => 2000,
+                    'amount_paid' => 2000,
+                    'currency' => 'usd',
+                    'subscription' => 'sub_paid_001',
+                    'metadata' => [
+                        'user_id' => (string) $user->id,
+                    ],
+                ],
+            ],
+        ];
+        
+        $timestamp = now()->timestamp;
+        $rawPayload = json_encode($payload, JSON_THROW_ON_ERROR);
+        $signature = hash_hmac('sha256', $timestamp.'.'.$rawPayload, 'whsec_test_secret');
+        
+        $this->postJson('/api/billing/webhooks/stripe', $payload, [
+            'X-Billing-Timestamp' => (string) $timestamp,
+            'X-Billing-Signature' => $signature,
+        ])->assertCreated();
+        
+        $this->assertDatabaseHas('invoices', [
+            'provider' => 'stripe',
+            'provider_invoice_id' => 'in_paid_001',
+            'status' => 'paid',
+            'user_id' => $user->id,
+        ]);
+        
+        $this->assertDatabaseHas('subscriptions', [
+            'provider' => 'stripe',
+            'provider_subscription_id' => 'sub_paid_001',
+            'status' => 'active',
+        ]);
+    }
+    
+    public function test_invoice_payment_failed_webhook_marks_subscription_past_due(): void
+    {
+        config()->set('billing.webhooks.providers.stripe.signing_secret', 'whsec_test_secret');
+        
+        $user = User::factory()->create();
+        
+        Subscription::query()->create([
+            'user_id' => $user->id,
+            'provider' => 'stripe',
+            'provider_subscription_id' => 'sub_failed_001',
+            'status' => 'active',
+        ]);
+        
+        $payload = [
+            'id' => 'evt_invoice_failed_001',
+            'type' => 'invoice.payment_failed',
+            'data' => [
+                'object' => [
+                    'id' => 'in_failed_001',
+                    'number' => 'INV-1002',
+                    'amount_due' => 2000,
+                    'currency' => 'usd',
+                    'subscription' => 'sub_failed_001',
+                    'metadata' => [
+                        'user_id' => (string) $user->id,
+                    ],
+                ],
+            ],
+        ];
+        
+        $timestamp = now()->timestamp;
+        $rawPayload = json_encode($payload, JSON_THROW_ON_ERROR);
+        $signature = hash_hmac('sha256', $timestamp.'.'.$rawPayload, 'whsec_test_secret');
+        
+        $this->postJson('/api/billing/webhooks/stripe', $payload, [
+            'X-Billing-Timestamp' => (string) $timestamp,
+            'X-Billing-Signature' => $signature,
+        ])->assertCreated();
+        
+        $this->assertDatabaseHas('invoices', [
+            'provider' => 'stripe',
+            'provider_invoice_id' => 'in_failed_001',
+            'status' => 'uncollectible',
+            'user_id' => $user->id,
+        ]);
+        
+        $this->assertDatabaseHas('subscriptions', [
+            'provider' => 'stripe',
+            'provider_subscription_id' => 'sub_failed_001',
+            'status' => 'past_due',
+        ]);
+    }
+    
+    public function test_subscription_deleted_webhook_marks_subscription_canceled(): void
+    {
+        config()->set('billing.webhooks.providers.stripe.signing_secret', 'whsec_test_secret');
+        
+        $user = User::factory()->create();
+        
+        Subscription::query()->create([
+            'user_id' => $user->id,
+            'provider' => 'stripe',
+            'provider_subscription_id' => 'sub_cancelled_001',
+            'status' => 'active',
+        ]);
+        
+        $payload = [
+            'id' => 'evt_subscription_deleted_001',
+            'type' => 'customer.subscription.deleted',
+            'data' => [
+                'object' => [
+                    'id' => 'sub_cancelled_001',
+                ],
+            ],
+        ];
+        
+        $timestamp = now()->timestamp;
+        $rawPayload = json_encode($payload, JSON_THROW_ON_ERROR);
+        $signature = hash_hmac('sha256', $timestamp.'.'.$rawPayload, 'whsec_test_secret');
+        
+        $this->postJson('/api/billing/webhooks/stripe', $payload, [
+            'X-Billing-Timestamp' => (string) $timestamp,
+            'X-Billing-Signature' => $signature,
+        ])->assertCreated();
+        
+        $this->assertDatabaseHas('subscriptions', [
+            'provider' => 'stripe',
+            'provider_subscription_id' => 'sub_cancelled_001',
+            'status' => 'canceled',
         ]);
     }
 }

@@ -12,6 +12,8 @@ class InvoiceController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', Invoice::class);
+
         /** @var User $user */
         $user = $request->user();
 
