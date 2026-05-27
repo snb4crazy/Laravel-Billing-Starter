@@ -27,9 +27,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         RateLimiter::for('webhooks', function (Request $request): Limit {
-            $provider = (string) $request->route('provider');
-
-            return Limit::perMinute(240)->by($provider.'|'.$request->ip());
+            return Limit::perMinute(240)->by((string) $request->ip());
         });
     }
 }
