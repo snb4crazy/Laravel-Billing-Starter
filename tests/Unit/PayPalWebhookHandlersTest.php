@@ -225,6 +225,39 @@ class PayPalWebhookHandlersTest extends TestCase
         $this->assertSame('INSUFFICIENT_FUNDS', $payment->metadata['failure_reason']);
     }
     
+    public function test_subscription_activated_handler_updates_subscription_status(): void
+    {
+        $user = User::factory()->create();
+        $subscription = Subscription::create([
+            'user_id' => $user->id,
+            'provider' => 'paypal',
+            'provider_subscription_id' => 'I-SUB-001',
+            'status' => 'incomplete',
+        ]);
+        
+        $event = WebhookEvent::create([
+            'provider' => 'paypal',
+            'external_event_id' => 'WH-SUB-ACTIVATED',
+            'event_type_raw' => 'BILLING.SUBSCRIPTION.ACTIVATED',
+            'event_type_canonical' => 'subscription.activated',
+            'payload_json' => [
+                'resource' => [
+                    'id' => 'I-SUB-001',
+                    'status' => 'ACTIVE',
+                ],
+            ],
+            'headers_json' => [],
+            'signature_verified_at' => now(),
+            'processing_status' => 'pending',
+        ]);
+        
+        $handler = new SubscriptionActivatedHandler();
+        $handler->handle($event);
+        
+        $subscription->refresh();
+        $this->assertSame('active', $subscription->status);
+    }
+    
     
 }
 
