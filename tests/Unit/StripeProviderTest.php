@@ -91,6 +91,38 @@ class StripeProviderTest extends TestCase
         ]);
     }
     
+    // -----------------------------------------------------------------------
+    // createCheckoutSession — one-time payment (no plan)
+    // -----------------------------------------------------------------------
+    
+    public function test_create_checkout_session_one_time_payment_mode(): void
+    {
+        $user = new User();
+        $user->id = 3;
+        $user->email = 'carol@example.com';
+        
+        /** @var MockInterface&StripeClientInterface $client */
+        $client = Mockery::mock(StripeClientInterface::class);
+        
+        $client->shouldReceive('findOrCreateCustomer')->andReturn(['id' => 'cus_test_003']);
+        
+        $client->shouldReceive('createCheckoutSession')
+            ->once()
+            ->with(Mockery::on(fn (array $params): bool => (
+                $params['mode'] === 'payment'
+                && $params['line_items'][0]['price_data']['unit_amount'] === 4900
+                && $params['line_items'][0]['price_data']['currency'] === 'usd'
+            )))
+            ->andReturn(['id' => 'cs_test_003', 'url' => 'https://checkout.stripe.com/cs_test_003']);
+        
+        (new StripeProvider($client))->createCheckoutSession($user, null, [
+            'amount' => 4900,
+            'currency' => 'usd',
+            'success_url' => 'https://example.com/success',
+            'cancel_url' => 'https://example.com/cancel',
+        ]);
+    }
+    
     
 }
 
