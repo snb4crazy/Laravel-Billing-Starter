@@ -309,6 +309,43 @@ class BillingApiTest extends TestCase
         ]);
     }
     
-    
+    public function test_subscription_deleted_webhook_marks_subscription_canceled(): void
+    {
+        config()->set('billing.webhooks.providers.stripe.signing_secret', 'whsec_test_secret');
+        
+        $user = User::factory()->create();
+        
+        Subscription::query()->create([
+            'user_id' => $user->id,
+            'provider' => 'stripe',
+            'provider_subscription_id' => 'sub_cancelled_001',
+            'status' => 'active',
+        ]);
+        
+        $payload = [
+            'id' => 'evt_subscription_deleted_001',
+            'type' => 'customer.subscription.deleted',
+            'data' => [
+                'object' => [
+                    'id' => 'sub_cancelled_001',
+                ],
+            ],
+        ];
+        
+        $timestamp = now()->timestamp;
+        $rawPayload = json_encode($payload, JSON_THROW_ON_ERROR);
+        $signature = hash_hmac('sha256', $timestamp.'.'.$rawPayload, 'whsec_test_secret');
+        
+        $this->postJson('/api/billing/webhooks/stripe', $payload, [
+            'X-Billing-Timestamp' => (string) $timestamp,
+            'X-Billing-Signature' => $signature,
+        ])->assertCreated();
+        
+        $this->assertDatabaseHas('subscriptions', [
+            'provider' => 'stripe',
+            'provider_subscription_id' => 'sub_cancelled_001',
+            'status' => 'canceled',
+        ]);
+    }
 }
 
