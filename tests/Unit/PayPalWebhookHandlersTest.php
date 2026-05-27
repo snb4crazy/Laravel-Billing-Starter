@@ -32,7 +32,7 @@ class PayPalWebhookHandlersTest extends TestCase
                     'custom_id' => (string) $user->id,
                     'supplementary_data' => [
                         'related_ids' => [
-                            'order_id' => (string) $user->id,
+                            'order_id' => 'ORDER-123',
                         ],
                     ],
                 ],

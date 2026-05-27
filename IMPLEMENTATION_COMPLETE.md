@@ -205,8 +205,8 @@ PayPal webhooks now have **feature parity** with Stripe:
 | Payment success | ✅ | ✅ |
 | Payment failure | ✅ | ✅ |
 | Subscription activation | - | ✅ |
-| Subscription cancellation | ✅ | ✅ |
-| Invoice generation | ✅ | ✅ |
+| Subscription cancellation | ✅ | - |
+| Invoice generation | ✅ | - |
 | Idempotent handling | ✅ | ✅ |
 | User resolution | ✅ | ✅ |
 | Error handling | ✅ | ✅ |

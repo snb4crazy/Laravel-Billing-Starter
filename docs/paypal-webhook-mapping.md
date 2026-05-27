@@ -129,11 +129,10 @@ PayPal webhook events are mapped to canonical event types in `WebhookController:
 
 Handlers resolve users from the webhook payload in this order:
 
-1. `resource.supplementary_data.related_ids.order_id` (for one-time payments)
-2. `resource.custom_id` (for subscriptions and explicit tracking)
+1. `resource.custom_id` (set to the internal user ID by `PayPalProvider`)
+2. `resource.supplementary_data.related_ids.order_id` (only if you explicitly store a numeric user ID there)
 
 If no valid user ID is found, the handler silently skips processing.
-
 ## PayPal Webhook Configuration
 
 ### Setup in PayPal Dashboard
