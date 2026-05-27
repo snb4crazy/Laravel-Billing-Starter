@@ -49,11 +49,18 @@ class PaymentDeniedHandler
         ]);
     }
 
-    private function resolveUser(array $resource): ?User
+    private function extractPaymentDetails(array $payload): array
+    {
+        return (array) (data_get($payload, 'resource') ?? data_get($payload, 'data.object', []));
+    }
+
+    private function resolveUser(array $details): ?User
     {
         $candidates = [
-            data_get($resource, 'custom_id'),
-            data_get($resource, 'supplementary_data.related_ids.order_id'),
+            data_get($details, 'metadata.user_id'),
+            data_get($details, 'user_id'),
+            data_get($details, 'custom_id'),
+            data_get($details, 'supplementary_data.related_ids.order_id'),
         ];
 
         foreach ($candidates as $userId) {
