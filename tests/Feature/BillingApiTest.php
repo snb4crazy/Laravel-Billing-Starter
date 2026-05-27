@@ -545,9 +545,34 @@ class BillingApiTest extends TestCase
         $payment = Payment::query()->where('provider_payment_id', 'txn_paddle_002')->first();
         $this->assertSame('PAYMENT_DECLINED', $payment?->metadata['failure_reason']);
     }
-    
-    
 
+    public function test_paddle_subscription_created_webhook_creates_subscription(): void
+    {
+        $user = User::factory()->create();
+        
+        $payload = [
+            'event_id' => 'evt_paddle_sub_created_001',
+            'event_type' => 'subscription.created',
+            'occurred_at' => now()->toIso8601String(),
+            'data' => [
+                'id' => 'sub_paddle_001',
+                'status' => 'active',
+                'customer_id' => 'cus_paddle_001',
+                'custom_data' => [
+                    'user_id' => (string) $user->id,
+                ],
+            ],
+        ];
+        
+        $this->sendPaddleWebhook($payload)->assertCreated();
+        
+        $this->assertDatabaseHas('subscriptions', [
+            'provider' => 'paddle',
+            'provider_subscription_id' => 'sub_paddle_001',
+            'user_id' => $user->id,
+            'status' => 'active',
+        ]);
+    }
 
     public function test_unhandled_canonical_webhook_event_is_marked_ignored(): void
     {
