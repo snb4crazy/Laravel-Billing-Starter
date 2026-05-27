@@ -49,9 +49,20 @@ class PayPalProvider implements BillingProvider
             ],
         ]);
 
+        $orderId = is_string($order['id'] ?? null) ? trim($order['id']) : '';
+        $approvalUrl = is_string($order['approve_url'] ?? null) ? trim($order['approve_url']) : '';
+
+        if ($orderId === '') {
+            throw new RuntimeException('PayPal checkout order response is missing the order ID.');
+        }
+
+        if ($approvalUrl === '') {
+            throw new RuntimeException('PayPal checkout order response is missing the approval URL.');
+        }
+
         return [
-            'session_id' => $order['id'],
-            'checkout_url' => $order['approve_url'],
+            'session_id' => $orderId,
+            'checkout_url' => $approvalUrl,
         ];
     }
 
