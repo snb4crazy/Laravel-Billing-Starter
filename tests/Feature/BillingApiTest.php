@@ -153,6 +153,31 @@ class BillingApiTest extends TestCase
         $first->assertCreated();
         $second->assertConflict();
     }
+    
+    public function test_idempotency_key_is_not_consumed_when_mutation_returns_4xx(): void
+    {
+        $owner = User::factory()->create();
+        $otherUser = User::factory()->create();
+        
+        $subscription = Subscription::query()->create([
+            'user_id' => $owner->id,
+            'provider' => 'stripe',
+            'provider_subscription_id' => 'sub_owner_002',
+            'status' => 'active',
+        ]);
+        
+        $token = $otherUser->createToken('api')->plainTextToken;
+        $headers = ['Idempotency-Key' => 'idem-cancel-foreign-002'];
+        
+        $first = $this->withToken($token)
+            ->postJson('/api/billing/subscriptions/'.$subscription->id.'/cancel', [], $headers);
+        
+        $second = $this->withToken($token)
+            ->postJson('/api/billing/subscriptions/'.$subscription->id.'/cancel', [], $headers);
+        
+        $first->assertForbidden();
+        $second->assertForbidden();
+    }
 
     public function test_user_cannot_cancel_another_users_subscription(): void
     {
@@ -220,6 +245,38 @@ class BillingApiTest extends TestCase
             ['id' => 'evt_bad_sig', 'type' => 'invoice.paid'],
             ['Stripe-Signature' => 't='.now()->timestamp.',v1=invalidsignature'],
         )->assertUnauthorized();
+    }
+
+
+    public function test_unhandled_canonical_webhook_event_is_marked_ignored(): void
+    {
+        config()->set('billing.webhooks.providers.stripe.signing_secret', 'whsec_test_secret');
+
+        $payload = [
+            'id' => 'evt_unhandled_001',
+            'type' => 'customer.subscription.updated',
+            'data' => [
+                'object' => [
+                    'id' => 'sub_unknown_001',
+                ],
+            ],
+        ];
+
+        $timestamp = now()->timestamp;
+        $rawPayload = json_encode($payload, JSON_THROW_ON_ERROR);
+        $signature = hash_hmac('sha256', $timestamp.'.'.$rawPayload, 'whsec_test_secret');
+
+        $this->postJson('/api/billing/webhooks/stripe', $payload, [
+            'X-Billing-Timestamp' => (string) $timestamp,
+            'X-Billing-Signature' => $signature,
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('webhook_events', [
+            'provider' => 'stripe',
+            'external_event_id' => 'evt_unhandled_001',
+            'event_type_canonical' => 'subscription.updated',
+            'processing_status' => 'ignored',
+        ]);
     }
 
     public function test_invoice_paid_webhook_creates_paid_invoice_and_activates_subscription(): void

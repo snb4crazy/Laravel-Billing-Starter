@@ -254,7 +254,7 @@ components:
         type: string
         enum: [stripe, paypal, paddle, square]
 
-    schemas:
+  schemas:
     RegisterRequest:
       type: object
       properties:

@@ -1,58 +1,115 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Laravel Billing Starter
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Reusable, security-first billing backend template for Laravel API apps.
 
-## About Laravel
+This project is intentionally modular so you can adopt it piece by piece in an existing app:
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- auth first
+- plans and subscriptions next
+- checkout and webhooks next
+- provider integrations (Stripe first) when ready
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## What This Starter Includes
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- Laravel 13 API baseline
+- Sanctum bearer token authentication
+- Billing domain models:
+  - `plans`
+  - `subscriptions`
+  - `payments`
+  - `invoices`
+  - `webhook_events`
+- Idempotency middleware for mutating billing routes
+- Webhook signature verification middleware
+- Role baseline (`admin`, `customer`)
+- Policy-based authorization
+- Stripe adapter layer with extractable boundaries
 
-## Learning Laravel
+## Security Defaults
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+- Never trust frontend payment success callbacks.
+- Treat provider webhooks as source of truth.
+- Require idempotency keys on POST/PUT/PATCH/DELETE billing routes.
+- Verify webhook signatures before processing.
+- Maintain auditable `webhook_events` history.
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## API Surface (Current)
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+Auth:
 
-## Agentic Development
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `GET /api/auth/me`
+- `POST /api/auth/logout`
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+Billing:
+
+- `GET /api/billing/plans`
+- `POST /api/billing/checkout/session`
+- `POST /api/billing/subscriptions`
+- `POST /api/billing/subscriptions/{subscription}/cancel`
+- `GET /api/billing/payments`
+- `GET /api/billing/invoices`
+- `POST /api/billing/webhooks/{provider}`
+
+See `docs/api/openapi.yaml` for request/response schemas.
+
+## Quick Start
+
+1. Install dependencies
+2. Configure environment
+3. Run migrations
+4. Start app
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+composer install
+cp .env.example .env
+php artisan key:generate
+php artisan migrate
+php artisan serve
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+## Stripe Setup (Test Mode)
 
-## Contributing
+Set these env vars in `.env`:
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```dotenv
+BILLING_DEFAULT_PROVIDER=stripe
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+```
 
-## Code of Conduct
+Forward webhooks locally:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```bash
+stripe listen --forward-to http://localhost:8000/api/billing/webhooks/stripe
+```
 
-## Security Vulnerabilities
+Detailed setup and extraction guide:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+- `docs/stripe-integration-guide.md`
+
+## Documentation Index
+
+- `docs/planning.md`
+- `docs/scaffold.md`
+- `docs/roadmap.md`
+- `docs/security-model.md`
+- `docs/provider-contract.md`
+- `docs/webhook-spec.md`
+- `docs/testing-strategy.md`
+- `docs/operations-runbook.md`
+- `docs/migration-guide.md`
+- `docs/release-checklist.md`
+- `docs/api/openapi.yaml`
+- `docs/stripe-integration-guide.md`
+
+## Testing
+
+```bash
+php artisan test
+```
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+MIT
