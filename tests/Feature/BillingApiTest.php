@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Plan;
+use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -153,6 +154,27 @@ class BillingApiTest extends TestCase
         $second->assertConflict();
     }
 
+    public function test_user_cannot_cancel_another_users_subscription(): void
+    {
+        $owner = User::factory()->create();
+        $otherUser = User::factory()->create();
+
+        $subscription = Subscription::query()->create([
+            'user_id' => $owner->id,
+            'provider' => 'stripe',
+            'provider_subscription_id' => 'sub_owner_001',
+            'status' => 'active',
+        ]);
+
+        $token = $otherUser->createToken('api')->plainTextToken;
+
+        $this->withToken($token)
+            ->postJson('/api/billing/subscriptions/'.$subscription->id.'/cancel', [], [
+                'Idempotency-Key' => 'idem-cancel-foreign-001',
+            ])
+            ->assertForbidden();
+    }
+
     public function test_webhook_signature_is_verified_and_duplicate_events_are_deduped(): void
     {
         config()->set('billing.webhooks.providers.stripe.signing_secret', 'whsec_test_secret');
@@ -179,5 +201,7 @@ class BillingApiTest extends TestCase
             'message' => 'Duplicate event ignored.',
         ]);
     }
+
+    
 }
 
