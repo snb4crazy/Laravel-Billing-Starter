@@ -53,6 +53,11 @@ class PaymentCompletedHandler
     private function resolveUser(array $resource): ?User
     {
         $candidates = [
+            // Stripe-style payloads (charge.*)
+            data_get($resource, 'metadata.user_id'),
+            data_get($resource, 'user_id'),
+
+            // PayPal-style payloads (PAYMENT.CAPTURE.*)
             data_get($resource, 'custom_id'),
             data_get($resource, 'supplementary_data.related_ids.order_id'),
         ];
