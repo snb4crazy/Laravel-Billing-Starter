@@ -256,6 +256,59 @@ class BillingApiTest extends TestCase
         ]);
     }
     
+    public function test_invoice_payment_failed_webhook_marks_subscription_past_due(): void
+    {
+        config()->set('billing.webhooks.providers.stripe.signing_secret', 'whsec_test_secret');
+        
+        $user = User::factory()->create();
+        
+        Subscription::query()->create([
+            'user_id' => $user->id,
+            'provider' => 'stripe',
+            'provider_subscription_id' => 'sub_failed_001',
+            'status' => 'active',
+        ]);
+        
+        $payload = [
+            'id' => 'evt_invoice_failed_001',
+            'type' => 'invoice.payment_failed',
+            'data' => [
+                'object' => [
+                    'id' => 'in_failed_001',
+                    'number' => 'INV-1002',
+                    'amount_due' => 2000,
+                    'currency' => 'usd',
+                    'subscription' => 'sub_failed_001',
+                    'metadata' => [
+                        'user_id' => (string) $user->id,
+                    ],
+                ],
+            ],
+        ];
+        
+        $timestamp = now()->timestamp;
+        $rawPayload = json_encode($payload, JSON_THROW_ON_ERROR);
+        $signature = hash_hmac('sha256', $timestamp.'.'.$rawPayload, 'whsec_test_secret');
+        
+        $this->postJson('/api/billing/webhooks/stripe', $payload, [
+            'X-Billing-Timestamp' => (string) $timestamp,
+            'X-Billing-Signature' => $signature,
+        ])->assertCreated();
+        
+        $this->assertDatabaseHas('invoices', [
+            'provider' => 'stripe',
+            'provider_invoice_id' => 'in_failed_001',
+            'status' => 'uncollectible',
+            'user_id' => $user->id,
+        ]);
+        
+        $this->assertDatabaseHas('subscriptions', [
+            'provider' => 'stripe',
+            'provider_subscription_id' => 'sub_failed_001',
+            'status' => 'past_due',
+        ]);
+    }
+    
     
 }
 
