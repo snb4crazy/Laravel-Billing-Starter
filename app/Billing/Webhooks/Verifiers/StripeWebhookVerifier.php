@@ -8,7 +8,7 @@ use Stripe\Webhook;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Stripe-native webhook verifier.
+ * Stripe-native webhook verifier.x
  *
  * Uses the official Stripe SDK Webhook::constructEvent() which:
  *   - Reads the Stripe-Signature header (automatic replay protection).
