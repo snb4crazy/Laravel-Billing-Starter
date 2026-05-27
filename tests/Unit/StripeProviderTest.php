@@ -123,6 +123,38 @@ class StripeProviderTest extends TestCase
         ]);
     }
     
+    // -----------------------------------------------------------------------
+    // createSubscription
+    // -----------------------------------------------------------------------
     
+    public function test_create_subscription_returns_provider_id_and_status(): void
+    {
+        $user = new User();
+        $user->id = 4;
+        $user->email = 'dan@example.com';
+        
+        $plan = new Plan();
+        $plan->provider_plan_monthly_id = 'price_monthly_004';
+        $plan->provider_plan_yearly_id = 'price_yearly_004';
+        
+        /** @var MockInterface&StripeClientInterface $client */
+        $client = Mockery::mock(StripeClientInterface::class);
+        
+        $client->shouldReceive('findOrCreateCustomer')->andReturn(['id' => 'cus_test_004']);
+        
+        $client->shouldReceive('createSubscription')
+            ->once()
+            ->with(Mockery::on(fn (array $params): bool => (
+                $params['customer'] === 'cus_test_004'
+                && $params['items'][0]['price'] === 'price_monthly_004'
+                && $params['metadata']['user_id'] === '4'
+            )))
+            ->andReturn(['id' => 'sub_test_004', 'status' => 'incomplete']);
+        
+        $result = (new StripeProvider($client))->createSubscription($user, $plan, 'monthly');
+        
+        $this->assertEquals('sub_test_004', $result['provider_subscription_id']);
+        $this->assertEquals('incomplete', $result['status']);
+    }
 }
 
