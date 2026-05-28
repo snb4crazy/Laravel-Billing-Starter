@@ -86,7 +86,14 @@ class WebhookEventProcessor
     {
         if ($event->provider === 'paddle') {
             $this->paddleSubscriptionCreatedHandler->handle($event);
+
+            return;
         }
+
+        throw new \RuntimeException(sprintf(
+            'Unsupported provider [%s] for subscription.created webhook dispatch.',
+            $event->provider
+        ));
     }
 }
 
