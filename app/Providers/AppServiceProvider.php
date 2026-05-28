@@ -66,7 +66,7 @@ class AppServiceProvider extends ServiceProvider
             return new WebhookVerifierRegistry(
                 $toleranceSeconds,
                 $payPalClient instanceof NullPayPalClient ? null : $payPalClient,
-                $paddleClient instanceof NullPaddleClient ? null : $paddleClient,
+                $paddleClient,
             );
         });
     }
