@@ -143,7 +143,14 @@ Update `config/billing.php`:
         'vendor_id' => env('PADDLE_VENDOR_ID'),
         'api_key' => env('PADDLE_API_KEY'),
         'base_url' => env('PADDLE_API_BASE_URL', 'https://api.sandbox.paddle.com'),
-        'webhook_secret' => env('PADDLE_WEBHOOK_SECRET'),
+    ],
+],
+
+'webhooks' => [
+    'providers' => [
+        'paddle' => [
+            'signing_secret' => env('PADDLE_WEBHOOK_SECRET'),
+        ],
     ],
 ],
 ```
