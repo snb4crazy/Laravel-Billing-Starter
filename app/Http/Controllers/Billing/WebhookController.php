@@ -32,7 +32,6 @@ class WebhookController extends Controller
         'transaction.completed' => 'payment.succeeded',
         'transaction.payment_failed' => 'payment.failed',
         'subscription.created' => 'subscription.created',
-        'subscription.canceled' => 'subscription.canceled',
     ];
 
     public function handle(Request $request, string $provider, WebhookEventProcessor $processor): JsonResponse
