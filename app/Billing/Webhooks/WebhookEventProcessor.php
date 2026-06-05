@@ -11,6 +11,9 @@ use App\Billing\Webhooks\Handlers\SubscriptionActivatedHandler;
 use App\Billing\Webhooks\Handlers\SubscriptionCanceledHandler;
 use App\Models\WebhookEvent;
 use Illuminate\Support\Facades\DB;
+use App\Billing\Webhooks\Handlers\PaddlePaymentCompletedHandler;
+use App\Billing\Webhooks\Handlers\PaddlePaymentFailedHandler;
+use App\Billing\Webhooks\Handlers\PaddleSubscriptionCreatedHandler;
 
 class WebhookEventProcessor
 {
@@ -22,6 +25,9 @@ class WebhookEventProcessor
         private readonly PaymentDeniedHandler $paymentDeniedHandler,
         private readonly SubscriptionActivatedHandler $subscriptionActivatedHandler,
         private readonly SubscriptionCanceledHandler $subscriptionCanceledHandler,
+        private readonly PaddlePaymentCompletedHandler $paddlePaymentCompletedHandler,
+        private readonly PaddlePaymentFailedHandler $paddlePaymentFailedHandler,
+        private readonly PaddleSubscriptionCreatedHandler $paddleSubscriptionCreatedHandler,
     ) {
     }
 
@@ -32,9 +38,10 @@ class WebhookEventProcessor
                 'checkout.completed' => tap(true, fn () => $this->checkoutCompletedHandler->handle($event)),
                 'invoice.paid' => tap(true, fn () => $this->invoicePaidHandler->handle($event)),
                 'invoice.payment_failed' => tap(true, fn () => $this->invoicePaymentFailedHandler->handle($event)),
-                'payment.succeeded' => tap(true, fn () => $this->paymentCompletedHandler->handle($event)),
-                'payment.failed' => tap(true, fn () => $this->paymentDeniedHandler->handle($event)),
+                'payment.succeeded' => tap(true, fn () => $this->dispatchPaymentSucceeded($event)),
+                'payment.failed' => tap(true, fn () => $this->dispatchPaymentFailed($event)),
                 'subscription.activated' => tap(true, fn () => $this->subscriptionActivatedHandler->handle($event)),
+                'subscription.created' => tap(true, fn () => $this->dispatchSubscriptionCreated($event)),
                 'subscription.canceled' => tap(true, fn () => $this->subscriptionCanceledHandler->handle($event)),
                 default => false,
             };
@@ -55,6 +62,38 @@ class WebhookEventProcessor
                 'processed_at' => now(),
             ])->save();
         });
+    }
+
+    private function dispatchPaymentSucceeded(WebhookEvent $event): void
+    {
+        if ($event->provider === 'paddle') {
+            $this->paddlePaymentCompletedHandler->handle($event);
+        } else {
+            $this->paymentCompletedHandler->handle($event);
+        }
+    }
+
+    private function dispatchPaymentFailed(WebhookEvent $event): void
+    {
+        if ($event->provider === 'paddle') {
+            $this->paddlePaymentFailedHandler->handle($event);
+        } else {
+            $this->paymentDeniedHandler->handle($event);
+        }
+    }
+
+    private function dispatchSubscriptionCreated(WebhookEvent $event): void
+    {
+        if ($event->provider === 'paddle') {
+            $this->paddleSubscriptionCreatedHandler->handle($event);
+
+            return;
+        }
+
+        throw new \RuntimeException(sprintf(
+            'Unsupported provider [%s] for subscription.created webhook dispatch.',
+            $event->provider
+        ));
     }
 }
 

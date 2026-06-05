@@ -14,6 +14,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
+use App\Billing\Contracts\PaddleClientInterface;
+use App\Billing\Paddle\NullPaddleClient;
+use App\Billing\Paddle\PaddleHttpClient;
+
 class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
@@ -42,13 +46,27 @@ class AppServiceProvider extends ServiceProvider
             return new PayPalHttpClient($clientId, $clientSecret, $baseUrl);
         });
 
+        $this->app->bind(PaddleClientInterface::class, function (): PaddleClientInterface {
+            $vendorId = (string) config('billing.providers.paddle.vendor_id', '');
+            $apiKey = (string) config('billing.providers.paddle.api_key', '');
+            $baseUrl = (string) config('billing.providers.paddle.base_url', 'https://api.sandbox.paddle.com');
+
+            if ($vendorId === '' || $apiKey === '') {
+                return new NullPaddleClient();
+            }
+
+            return new PaddleHttpClient($vendorId, $apiKey, $baseUrl);
+        });
+
         $this->app->singleton(WebhookVerifierRegistry::class, function (): WebhookVerifierRegistry {
             $toleranceSeconds = max((int) config('billing.webhooks.tolerance_seconds', 300), 60);
             $payPalClient = $this->app->make(PayPalClientInterface::class);
+            $paddleClient = $this->app->make(PaddleClientInterface::class);
 
             return new WebhookVerifierRegistry(
                 $toleranceSeconds,
                 $payPalClient instanceof NullPayPalClient ? null : $payPalClient,
+                $paddleClient,
             );
         });
     }

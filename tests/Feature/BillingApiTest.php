@@ -273,6 +273,43 @@ class BillingApiTest extends TestCase
         );
     }
 
+    private function fakePaddleWebhookVerification(): void
+    {
+        $this->app->bind(\App\Billing\Contracts\PaddleClientInterface::class, function (): \App\Billing\Contracts\PaddleClientInterface {
+            return new class implements \App\Billing\Contracts\PaddleClientInterface
+            {
+                public function createCheckout(array $params): array
+                {
+                    return ['id' => 'CHK-FAKE', 'url' => 'https://example.test', 'status' => 'draft'];
+                }
+
+                public function createSubscription(array $params): array
+                {
+                    return ['id' => 'SUB-FAKE', 'status' => 'active'];
+                }
+
+                public function verifyWebhookSignature(array $params): bool
+                {
+                    return true;
+                }
+            };
+        });
+    }
+
+    private function sendPaddleWebhook(array $payload): \Illuminate\Testing\TestResponse
+    {
+        config()->set('billing.providers.paddle.vendor_id', 'paddle-vendor-id-test');
+        config()->set('billing.providers.paddle.api_key', 'paddle-api-key-test');
+        config()->set('billing.webhooks.providers.paddle.signing_secret', 'WH-PADDLE-SECRET');
+        $this->fakePaddleWebhookVerification();
+
+        return $this->postJson(
+            '/api/billing/webhooks/paddle',
+            $payload,
+            ['Paddle-Signature' => 'stub-signature'],
+        );
+    }
+
     public function test_webhook_signature_is_verified_and_duplicate_events_are_deduped(): void
     {
         $payload = ['id' => 'evt_dedup_001', 'type' => 'invoice.paid'];
@@ -441,6 +478,101 @@ class BillingApiTest extends TestCase
             ]);
     }
 
+    public function test_paddle_transaction_completed_webhook_creates_payment(): void
+    {
+        $user = User::factory()->create();
+
+        $payload = [
+            'event_id' => 'evt_paddle_txn_001',
+            'event_type' => 'transaction.completed',
+            'occurred_at' => now()->toIso8601String(),
+            'data' => [
+                'id' => 'txn_paddle_001',
+                'currency_code' => 'USD',
+                'details' => [
+                    'total' => 2499,
+                ],
+                'custom_data' => [
+                    'user_id' => (string) $user->id,
+                ],
+            ],
+        ];
+
+        $this->sendPaddleWebhook($payload)->assertCreated();
+
+        $this->assertDatabaseHas('payments', [
+            'provider' => 'paddle',
+            'provider_payment_id' => 'txn_paddle_001',
+            'user_id' => $user->id,
+            'status' => 'succeeded',
+            'amount' => 2499,
+            'currency' => 'USD',
+        ]);
+    }
+
+    public function test_paddle_transaction_failed_webhook_creates_failed_payment(): void
+    {
+        $user = User::factory()->create();
+        
+        $payload = [
+            'event_id' => 'evt_paddle_txn_failed_001',
+            'event_type' => 'transaction.payment_failed',
+            'occurred_at' => now()->toIso8601String(),
+            'data' => [
+                'id' => 'txn_paddle_002',
+                'currency_code' => 'USD',
+                'details' => [
+                    'total' => 1999,
+                ],
+                'status' => 'PAYMENT_DECLINED',
+                'custom_data' => [
+                    'user_id' => (string) $user->id,
+                ],
+            ],
+        ];
+        
+        $this->sendPaddleWebhook($payload)->assertCreated();
+        
+        $this->assertDatabaseHas('payments', [
+            'provider' => 'paddle',
+            'provider_payment_id' => 'txn_paddle_002',
+            'user_id' => $user->id,
+            'status' => 'failed',
+            'amount' => 1999,
+            'currency' => 'USD',
+        ]);
+        
+        $payment = Payment::query()->where('provider_payment_id', 'txn_paddle_002')->first();
+        $this->assertSame('PAYMENT_DECLINED', $payment?->metadata['failure_reason']);
+    }
+
+    public function test_paddle_subscription_created_webhook_creates_subscription(): void
+    {
+        $user = User::factory()->create();
+        
+        $payload = [
+            'event_id' => 'evt_paddle_sub_created_001',
+            'event_type' => 'subscription.created',
+            'occurred_at' => now()->toIso8601String(),
+            'data' => [
+                'id' => 'sub_paddle_001',
+                'status' => 'active',
+                'customer_id' => 'cus_paddle_001',
+                'custom_data' => [
+                    'user_id' => (string) $user->id,
+                ],
+            ],
+        ];
+        
+        $this->sendPaddleWebhook($payload)->assertCreated();
+        
+        $this->assertDatabaseHas('subscriptions', [
+            'provider' => 'paddle',
+            'provider_subscription_id' => 'sub_paddle_001',
+            'user_id' => $user->id,
+            'status' => 'active',
+        ]);
+    }
 
     public function test_unhandled_canonical_webhook_event_is_marked_ignored(): void
     {
